@@ -21,43 +21,37 @@ jobs:
         env:
           BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
-      - name: Get and Sort RHOAI Branches
+      - name: Get RHOAI Branches
         id: get-branches
         run: |
           branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
           
-          # Sort the branches numerically by version
-          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
-
+          # Sort branches numerically by version
+          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | @csv' | tr -d '"' | tr ',' '\n')
+          
           echo "Sorted branches:"
           echo "$sorted_branches"
 
-          # Save branches to a file
-          echo "$sorted_branches" > branches.txt
-          echo "branches_file=branches.txt" >> $GITHUB_ENV
+          # Save branches to an environment file
+          echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          # Read branches from the file
-          sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
-          
-          if [ -z "$sorted_branches" ]; then
+          branches="${{ env.sorted_branches }}"
+          if [ -z "$branches" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
 
-          # Convert the space-separated list to a bash array
-          sorted_branches_array=($sorted_branches)
-          
-          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
+          # Parse the branch names
+          latest_branch=$(echo "$branches" | sed -n '1p')
+          previous_branch=$(echo "$branches" | sed -n '2p')
+
+          if [ -z "$latest_branch" ] || [ -z "$previous_branch" ]; then
             echo "Not enough branches found."
             exit 1
           fi
-
-          # Parse the array
-          latest_branch=${sorted_branches_array[0]}
-          previous_branch=${sorted_branches_array[1]}
 
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
@@ -72,25 +66,32 @@ jobs:
     needs: determine-branches
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Operator Repo
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/rhods-operator
-          ref: ${{ needs.determine-branches.outputs.latest_branch }}
-
       - name: Checkout RBC Repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
+          ref: main  # Check out the default branch first
 
-      - name: Sync bundle files to RBC Repo
+      - name: Fetch All Branches
+        run: |
+          cd rbc-repo
+          git fetch --all
+
+      - name: Sync Bundle Files to RBC Repo
         run: |
           branches=("${{ needs.determine-branches.outputs.latest_branch }}" "${{ needs.determine-branches.outputs.previous_branch }}")
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
             cd rbc-repo
-            git checkout $branch
+
+            # Check if the branch exists and switch to it
+            if git show-ref --quiet refs/heads/$branch; then
+              git checkout $branch
+            else
+              echo "Branch $branch does not exist. Skipping."
+              continue
+            fi
 
             # Sync the CSV, metadata, and CRDs
             rsync -av --delete ../path/to/bundle/files/ bundle/
