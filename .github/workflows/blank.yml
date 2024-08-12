@@ -24,7 +24,7 @@ jobs:
       - name: Get RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh repo view DevOps-automation-tasks/rhods-operator --json refs --jq '.refs | map(select(.name | test("rhoai-\\d+\\.\\d+$"))) | sort_by(.name) | reverse | map(.name)')
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse')
           echo "::set-output name=branches::$branches"
 
       - name: Set Latest and Previous Branches
