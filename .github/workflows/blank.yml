@@ -24,23 +24,29 @@ jobs:
       - name: Get RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse')
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2]')
           echo "::set-output name=branches::$branches"
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches=${{ steps.get-branches.outputs.branches }}
-          if [ -z "$branches" ]; then
+          branches="${{ steps.get-branches.outputs.branches }}"
+          if [ "$branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
-          latest_branch=$(echo $branches | jq -r '.[0]')
-          previous_branch=$(echo $branches | jq -r '.[1]')
+          
+          # Convert branches from string to JSON array for jq
+          branches_json=$(echo "$branches" | jq .)
+          
+          latest_branch=$(echo "$branches_json" | jq -r '.[0]')
+          previous_branch=$(echo "$branches_json" | jq -r '.[1]')
+          
           if [ -z "$latest_branch" ] || [ -z "$previous_branch" ]; then
             echo "Not enough branches found."
             exit 1
           fi
+          
           echo "::set-output name=latest_branch::$latest_branch"
           echo "::set-output name=previous_branch::$previous_branch"
           echo "Latest branch: $latest_branch"
