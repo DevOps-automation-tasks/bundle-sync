@@ -27,14 +27,15 @@ jobs:
           branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
           
           # Sort the branches numerically by version
-          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | @csv' | tr -d '"' | tr ',' '\n')
-          
+          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | @csv' | tr -d '"' | tr ',' '\n')
+
           echo "Sorted branches: $sorted_branches"
           echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
+          # Convert the newline-separated list to a bash array
           sorted_branches=($(echo "${{ env.sorted_branches }}" | tr '\n' ' '))
           
           if [ ${#sorted_branches[@]} -lt 2 ]; then
