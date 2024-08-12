@@ -22,7 +22,7 @@ jobs:
         run: sudo apt-get install -y gh
 
       - name: Authenticate with GitHub CLI
-        run: gh auth login --with-token <<< "${{ secrets.BUNDLE_SYNC_TOKEN }}"
+        run: echo "${{ secrets.BUNDLE_SYNC_TOKEN }}" | gh auth login --with-token
         env:
           BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
@@ -46,7 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: [${{ needs.determine-branches.outputs.latest_branch }}, ${{ needs.determine-branches.outputs.previous_branch }}]
+        branch: 
+          - ${{ needs.determine-branches.outputs.latest_branch }}
+          - ${{ needs.determine-branches.outputs.previous_branch }}
 
     steps:
       - name: Checkout Operator Repo
