@@ -30,7 +30,7 @@ jobs:
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches=${{ env.branches }}
+          branches="${{ env.branches }}"
           if [ "$branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
@@ -61,13 +61,13 @@ jobs:
       - name: Checkout Operator Repo
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/DevOps-automation-tasks/rhods-operator.git
+          repository: DevOps-automation-tasks/rhods-operator
           ref: ${{ needs.determine-branches.outputs.latest_branch }}
 
       - name: Checkout RBC Repo
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/DevOps-automation-tasks/RHOAI-Build-Config.git
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
 
       - name: Sync bundle files to RBC Repo
