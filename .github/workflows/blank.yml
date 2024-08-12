@@ -25,32 +25,32 @@ jobs:
         id: get-branches
         run: |
           branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2]')
-          echo "::set-output name=branches::$branches"
+          echo "branches=$branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches="${{ steps.get-branches.outputs.branches }}"
+          branches="${{ env.branches }}"
           if [ "$branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
-          
-          # Convert branches from string to JSON array for jq
-          branches_json=$(echo "$branches" | jq .)
-          
-          latest_branch=$(echo "$branches_json" | jq -r '.[0]')
-          previous_branch=$(echo "$branches_json" | jq -r '.[1]')
-          
+
+          # Parse branches from JSON
+          latest_branch=$(echo "$branches" | jq -r '.[0]')
+          previous_branch=$(echo "$branches" | jq -r '.[1]')
+
           if [ -z "$latest_branch" ] || [ -z "$previous_branch" ]; then
             echo "Not enough branches found."
             exit 1
           fi
-          
-          echo "::set-output name=latest_branch::$latest_branch"
-          echo "::set-output name=previous_branch::$previous_branch"
+
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
+
+          # Set outputs using environment files
+          echo "latest_branch=$latest_branch" >> $GITHUB_ENV
+          echo "previous_branch=$previous_branch" >> $GITHUB_ENV
 
   sync-bundle:
     needs: determine-branches
