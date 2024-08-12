@@ -25,14 +25,18 @@ jobs:
         id: get-branches
         run: |
           branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
-          sorted_branches=$(echo "$branches" | jq -r '. | map(ltrimstr("rhoai-")) | map(split(".") | map(tonumber)) | sort_by(.[]) | map(join(".")) | map("rhoai-" + .) | reverse')
+          
+          # Sort the branches numerically by version
+          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse')
+          
+          echo "Sorted branches: $sorted_branches"
           echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
           sorted_branches=${{ env.sorted_branches }}
-          if [ "$sorted_branches" == "[]" ]; then
+          if [ -z "$sorted_branches" ] || [ "$sorted_branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
