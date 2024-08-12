@@ -29,7 +29,10 @@ jobs:
           # Sort branches numerically by version
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | @csv' | tr -d '"' | tr ',' '\n')
           
-          echo "Sorted branches: $sorted_branches"
+          echo "Sorted branches:"
+          echo "$sorted_branches"
+
+          # Save branches to an environment file
           echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
