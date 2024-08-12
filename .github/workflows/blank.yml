@@ -21,24 +21,25 @@ jobs:
         env:
           BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
-      - name: Get RHOAI Branches
+      - name: Get and Sort RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2]')
-          echo "branches=$branches" >> $GITHUB_ENV
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
+          sorted_branches=$(echo "$branches" | jq -r '. | map(ltrimstr("rhoai-")) | map(split(".") | map(tonumber)) | sort_by(.[]) | map(join(".")) | map("rhoai-" + .) | reverse')
+          echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches='${{ env.branches }}'
-          if [ "$branches" == "[]" ]; then
+          sorted_branches=${{ env.sorted_branches }}
+          if [ "$sorted_branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
 
-          # Correctly parse the JSON array
-          latest_branch=$(echo "$branches" | jq -r '.[0]')
-          previous_branch=$(echo "$branches" | jq -r '.[1]')
+          # Parse the JSON array
+          latest_branch=$(echo "$sorted_branches" | jq -r '.[0]')
+          previous_branch=$(echo "$sorted_branches" | jq -r '.[1]')
 
           if [ -z "$latest_branch" ] || [ -z "$previous_branch" ]; then
             echo "Not enough branches found."
