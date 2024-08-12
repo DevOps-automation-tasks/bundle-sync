@@ -27,25 +27,37 @@ jobs:
           branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
           
           # Sort the branches numerically by version
-          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | @csv' | tr -d '"' | tr ',' '\n')
+          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
 
-          echo "Sorted branches: $sorted_branches"
-          echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
+          echo "Sorted branches:"
+          echo "$sorted_branches"
+
+          # Save branches to a file
+          echo "$sorted_branches" > branches.txt
+          echo "branches_file=branches.txt" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          # Convert the newline-separated list to a bash array
-          sorted_branches=($(echo "${{ env.sorted_branches }}" | tr '\n' ' '))
+          # Read branches from the file
+          sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
           
-          if [ ${#sorted_branches[@]} -lt 2 ]; then
+          if [ -z "$sorted_branches" ]; then
+            echo "No branches found matching the pattern."
+            exit 1
+          fi
+
+          # Convert the space-separated list to a bash array
+          sorted_branches_array=($sorted_branches)
+          
+          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
             echo "Not enough branches found."
             exit 1
           fi
 
           # Parse the array
-          latest_branch=${sorted_branches[0]}
-          previous_branch=${sorted_branches[1]}
+          latest_branch=${sorted_branches_array[0]}
+          previous_branch=${sorted_branches_array[1]}
 
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
