@@ -30,13 +30,13 @@ jobs:
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches="${{ env.branches }}"
+          branches='${{ env.branches }}'
           if [ "$branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
 
-          # Parse the JSON array
+          # Correctly parse the JSON array
           latest_branch=$(echo "$branches" | jq -r '.[0]')
           previous_branch=$(echo "$branches" | jq -r '.[1]')
 
