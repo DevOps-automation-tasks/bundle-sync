@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
-  workflow_dispatch: # Allows manual triggering of the workflow
+  workflow_dispatch:
 
 jobs:
   determine-branches:
@@ -13,12 +13,6 @@ jobs:
       latest_branch: ${{ steps.set-branches.outputs.latest_branch }}
       previous_branch: ${{ steps.set-branches.outputs.previous_branch }}
     steps:
-      - name: Checkout DevOps Automation Repo
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/devops-automation
-          path: devops-automation
-
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
