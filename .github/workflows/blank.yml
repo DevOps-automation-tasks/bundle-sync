@@ -14,7 +14,7 @@ jobs:
       previous_branch: ${{ steps.set-branches.outputs.previous_branch }}
     steps:
       - name: Install GitHub CLI
-        run: sudo apt-get install -y gh
+        run: sudo apt-get install -y gh jq
 
       - name: Authenticate with GitHub CLI
         run: echo "${{ secrets.BUNDLE_SYNC_TOKEN }}" | gh auth login --with-token
@@ -24,7 +24,7 @@ jobs:
       - name: Get RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2]')
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2] | @json')
           echo "branches=$branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
@@ -36,7 +36,7 @@ jobs:
             exit 1
           fi
 
-          # Parse branches from JSON
+          # Remove the square brackets and quotes to get clean branch names
           latest_branch=$(echo "$branches" | jq -r '.[0]')
           previous_branch=$(echo "$branches" | jq -r '.[1]')
 
