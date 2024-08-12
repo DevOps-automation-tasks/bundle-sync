@@ -12,8 +12,11 @@ jobs:
       latest_branch: ${{ steps.set-branches.outputs.latest_branch }}
       previous_branch: ${{ steps.set-branches.outputs.previous_branch }}
     steps:
-      - name: Checkout the Repository
+      - name: Checkout DevOps Automation Repo
         uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/devops-automation
+          path: devops-automation
 
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
@@ -26,7 +29,7 @@ jobs:
       - name: Get RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh repo view https://github.com/DevOps-automation-tasks/rhods-operator.git --json refs --jq '.refs | map(select(.name | test("rhoai-\\d+\\.\\d+$"))) | sort_by(.name) | reverse | map(.name)')
+          branches=$(gh repo view DevOps-automation-tasks/rhods-operator --json refs --jq '.refs | map(select(.name | test("rhoai-\\d+\\.\\d+$"))) | sort_by(.name) | reverse | map(.name)')
           echo "::set-output name=branches::$branches"
 
       - name: Set Latest and Previous Branches
@@ -49,13 +52,13 @@ jobs:
       - name: Checkout Operator Repo
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/DevOps-automation-tasks/rhods-operator.git
+          repository: DevOps-automation-tasks/rhods-operator
           ref: ${{ matrix.branch }}
 
       - name: Checkout RBC Repo
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/DevOps-automation-tasks/RHOAI-Build-Config.git
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
 
       - name: Remove unnecessary fields from CSV files
