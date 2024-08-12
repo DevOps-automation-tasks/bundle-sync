@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
-  workflow_dispatch:
+  workflow_dispatch: # Allows the workflow to be triggered manually
 
 jobs:
   determine-branches:
@@ -13,7 +13,7 @@ jobs:
       latest_branch: ${{ steps.set-branches.outputs.latest_branch }}
       previous_branch: ${{ steps.set-branches.outputs.previous_branch }}
     steps:
-      - name: Install GitHub CLI
+      - name: Install GitHub CLI and jq
         run: sudo apt-get install -y gh jq
 
       - name: Authenticate with GitHub CLI
@@ -24,19 +24,19 @@ jobs:
       - name: Get RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2] | @json')
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name] | sort | reverse | .[:2]')
           echo "branches=$branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          branches="${{ env.branches }}"
+          branches=${{ env.branches }}
           if [ "$branches" == "[]" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
 
-          # Remove the square brackets and quotes to get clean branch names
+          # Parse the JSON array
           latest_branch=$(echo "$branches" | jq -r '.[0]')
           previous_branch=$(echo "$branches" | jq -r '.[1]')
 
@@ -57,21 +57,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: 
-          - ${{ needs.determine-branches.outputs.latest_branch }}
-          - ${{ needs.determine-branches.outputs.previous_branch }}
+        branch: [${{ env.latest_branch }}, ${{ env.previous_branch }}]
 
     steps:
       - name: Checkout Operator Repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/rhods-operator
+          repository: https://github.com/DevOps-automation-tasks/rhods-operator.git
           ref: ${{ matrix.branch }}
 
       - name: Checkout RBC Repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          repository: https://github.com/DevOps-automation-tasks/RHOAI-Build-Config.git
           path: rbc-repo
 
       - name: Remove unnecessary fields from CSV files
