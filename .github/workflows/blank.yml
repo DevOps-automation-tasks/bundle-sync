@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
+  workflow_dispatch: # Allows manual triggering of the workflow
 
 jobs:
   determine-branches:
@@ -36,10 +37,20 @@ jobs:
         id: set-branches
         run: |
           branches=${{ steps.get-branches.outputs.branches }}
+          if [ -z "$branches" ]; then
+            echo "No branches found matching the pattern."
+            exit 1
+          fi
           latest_branch=$(echo $branches | jq -r '.[0]')
           previous_branch=$(echo $branches | jq -r '.[1]')
+          if [ -z "$latest_branch" ] || [ -z "$previous_branch" ]; then
+            echo "Not enough branches found."
+            exit 1
+          fi
           echo "::set-output name=latest_branch::$latest_branch"
           echo "::set-output name=previous_branch::$previous_branch"
+          echo "Latest branch: $latest_branch"
+          echo "Previous branch: $previous_branch"
 
   sync-bundle:
     needs: determine-branches
