@@ -1,0 +1,64 @@
+name: correct
+
+on:
+  push:
+    paths:
+      - 'rhods-operator/bundle/**'
+      - 'rhods-operator/Dockerfiles/bundle.Dockerfile'
+    branches:
+      - 'rhoai-*'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync'
+        required: true
+        type: string
+  schedule:
+    - cron: '0 0 * * *'  # Adjust the schedule as needed
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rhods-operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: rhods-operator
+          ref: ${{ github.ref }}
+          
+      - name: Checkout RHOAI-Build-Config repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          path: rbc_repo
+          ref: ${{ github.ref }}
+
+      - name: Sync bundle to RBC repo
+        run: |
+          mkdir -p rbc_repo/bundle/
+          cp -r rhods-operator/bundle/* rbc_repo/bundle/
+          cp rhods-operator/Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
+
+      - name: Update local branch and commit changes
+        run: |
+          cd rbc_repo
+          git fetch origin
+          git checkout ${{ github.ref }}
+          git pull origin ${{ github.ref }}
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Sync bundle changes from rhods-operator repo" || echo "No changes to commit"
+
+      - name: Push changes to RBC repo
+        run: |
+          cd rbc_repo
+          git push origin ${{ github.ref }}
