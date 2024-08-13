@@ -1,4 +1,4 @@
-name: RBC Repos
+name: rbc12
 
 on:
   push:
