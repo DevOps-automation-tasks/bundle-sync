@@ -6,7 +6,7 @@ on:
       - 'bundle/**'
       - 'Dockerfiles/bundle.Dockerfile'
     branches:
-      - 'rhoai-*'
+      - 'rhoai-2.*
 
   workflow_dispatch:  # Allows manual triggering of the workflow
 
