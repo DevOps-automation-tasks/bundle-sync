@@ -1,4 +1,4 @@
-name: bund1
+name: bun78
 
 on:
   push:
@@ -82,37 +82,43 @@ jobs:
             # Navigate to the RBC repo directory
             cd rbc-repo
 
+            # Fetch all branches from the remote
+            git fetch origin
+
             # Verify the branch exists in the RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
               echo "Branch $branch exists in RBC repo. Checking out..."
               git checkout $branch
-
-              # Navigate to the operator repo directory
-              cd ../operator-repo
-
-              # Verify the branch exists in the operator repo
-              if git show-ref --verify --quiet refs/heads/$branch; then
-                echo "Branch $branch exists in Operator repo. Checking out..."
-                git checkout $branch
-
-                # Sync the bundle files from the operator repo
-                rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
-
-                # Overwrite the Dockerfile
-                cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
-
-                # Navigate back to RBC repo
-                cd ../rbc-repo
-
-                git add .
-                git commit -m "Sync bundle from operator repo for $branch"
-                git push origin $branch
-              else
-                echo "Branch $branch does not exist in Operator repo."
-              fi
-
             else
-              echo "Branch $branch does not exist in RBC repo."
+              echo "Branch $branch does not exist in RBC repo. Creating branch..."
+              git checkout -b $branch origin/$branch
+            fi
+
+            # Navigate to the operator repo directory
+            cd ../operator-repo
+
+            # Fetch all branches from the remote
+            git fetch origin
+
+            # Verify the branch exists in the operator repo
+            if git show-ref --verify --quiet refs/heads/$branch; then
+              echo "Branch $branch exists in Operator repo. Checking out..."
+              git checkout $branch
+
+              # Sync the bundle files from the operator repo
+              rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
+
+              # Overwrite the Dockerfile
+              cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
+
+              # Navigate back to RBC repo
+              cd ../rbc-repo
+
+              git add .
+              git commit -m "Sync bundle from operator repo for $branch"
+              git push origin $branch
+            else
+              echo "Branch $branch does not exist in Operator repo."
             fi
 
             # Navigate back to the root directory
