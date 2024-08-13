@@ -6,7 +6,7 @@ on:
       - 'bundle/**'
     branches:
       - 'rhoai-x.y*'  # Adjust this pattern to match your release branches
-
+  workflow_dispatch:
 jobs:
   sync-bundle:
     runs-on: ubuntu-latest
