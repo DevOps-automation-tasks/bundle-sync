@@ -1,4 +1,4 @@
-name: 01 RBC Repo
+name: 01RBC Repo
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches:
       - 'rhoai-x.y*'
 
-  workflow_dispatch:  # This adds the manual trigger
+  workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
   sync-bundle:
@@ -30,7 +30,10 @@ jobs:
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.ref }}
+          ref: ${{ github.ref }}  # Ensure the same branch name is used
+
+      - name: Ensure target bundle directory exists
+        run: mkdir -p ../RHOAI-Build-Config/bundle/
 
       - name: Sync bundle to RBC repo
         run: |
@@ -39,4 +42,15 @@ jobs:
 
       - name: Retain existing image digests
         run: |
-         
+          # Add commands to retain image digests
+          # Implement logic to keep existing digests.
+          echo "Retain image digests logic goes here."
+
+      - name: Commit and push changes to RBC repo
+        run: |
+          cd ../RHOAI-Build-Config
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Sync bundle changes from operator repo"
+          git push origin ${{ github.ref }}
