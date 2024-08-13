@@ -1,13 +1,9 @@
 name: 786
-
 on:
-  push:
-    paths:
-      - 'bundle/**'
   workflow_dispatch:
 
 jobs:
-  sync-bundle:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Operator Repo
@@ -15,7 +11,6 @@ jobs:
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
-          fetch-depth: 0
         id: checkout-operator-repo
 
       - name: Checkout RBC Repo
@@ -23,99 +18,100 @@ jobs:
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
-          fetch-depth: 0
         id: checkout-rbc-repo
 
-      - name: Install GitHub CLI and jq
-        run: sudo apt-get install -y gh jq
-
-      - name: Determine Branches
-        id: determine-branches
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get Branches
+        id: get-branches
         run: |
-          export GH_TOKEN=${GH_TOKEN}
+          # Fetch branches from the Operator repo
+          cd operator-repo
+          git fetch --all
+          operator_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
+          echo "Operator branches: $operator_branches"
+          echo "$operator_branches" > ../branches.txt
+          cd ..
 
-          branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --header "Authorization: token ${GH_TOKEN}")
+          # Fetch branches from the RBC repo
+          cd rbc-repo
+          git fetch --all
+          rbc_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
+          echo "RBC branches: $rbc_branches"
+          echo "$rbc_branches" > ../branches.txt
+          cd ..
 
-          branches=$(echo "$branches_json" | jq -r '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name] | sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
-          echo "Filtered branches:"
-          echo "$branches"
-          
-          echo "$branches" > branches.txt
-          echo "branches_file=branches.txt" >> $GITHUB_ENV
+          # Find latest and previous branches
+          latest_branch=$(head -n 1 branches.txt)
+          previous_branch=$(sed -n '2p' branches.txt)
+          echo "Latest branch: $latest_branch"
+          echo "Previous branch: $previous_branch"
 
-      - name: Sync Bundle Changes
+      - name: Sync Branches
         run: |
-          sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
+          # Read branches from the file
+          sorted_branches=$(cat branches.txt | tr '\n' ' ')
           
           if [ -z "$sorted_branches" ]; then
             echo "No branches found matching the pattern."
             exit 1
           fi
-
+          
+          # Convert the space-separated list to a bash array
           sorted_branches_array=($sorted_branches)
           
           if [ ${#sorted_branches_array[@]} -lt 2 ]; then
             echo "Not enough branches found."
             exit 1
           fi
-
+          
+          # Parse the array
           latest_branch=${sorted_branches_array[0]}
           previous_branch=${sorted_branches_array[1]}
-
+          
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
-
+          
           branches=("${latest_branch}" "${previous_branch}")
-
+          
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
             
             # Navigate to the RBC repo directory
             cd rbc-repo
-
-            # Fetch all branches from the remote
-            git fetch --all
-            git branch -r
-
+            
             # Verify the branch exists in the RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
               echo "Branch $branch exists in RBC repo. Checking out..."
               git checkout $branch
             else
-              echo "Branch $branch does not exist in RBC repo. Creating branch..."
-              git checkout -b $branch origin/$branch
+              echo "Branch $branch does not exist in RBC repo. Skipping..."
+              cd ..
+              continue
             fi
-
-            # Navigate to the operator repo directory
+            
+            # Navigate to the Operator repo directory
             cd ../operator-repo
-
-            # Fetch all branches from the remote
-            git fetch --all
-            git branch -r
-
-            # Verify the branch exists in the operator repo
+            
+            # Verify the branch exists in the Operator repo
             if git show-ref --verify --quiet refs/heads/$branch; then
               echo "Branch $branch exists in Operator repo. Checking out..."
               git checkout $branch
-
-              # Sync the bundle files from the operator repo
+            
+              # Sync the bundle files from the Operator repo
               rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
-
+            
               # Overwrite the Dockerfile
               cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
-
+            
               # Navigate back to RBC repo
               cd ../rbc-repo
-
+            
               git add .
               git commit -m "Sync bundle from operator repo for $branch"
               git push origin $branch
             else
-              echo "Branch $branch does not exist in Operator repo."
+              echo "Branch $branch does not exist in Operator repo. Skipping..."
             fi
-
+            
             # Navigate back to the root directory
             cd ..
           done
