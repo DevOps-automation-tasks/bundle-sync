@@ -4,107 +4,66 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
-  workflow_dispatch:  # Allows manual triggering of the workflow
+  workflow_dispatch:
 
 jobs:
-  sync:
+  sync-bundle:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout operator repo
+      - name: Checkout rhods-operator repository
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
 
-      - name: Checkout RBC repo
+      - name: Checkout RHOAI-Build-Config repository
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
-          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
-      - name: List operator repo files
+      - name: Fetch all branches and determine latest
         run: |
-          echo "Listing files in operator-repo:"
-          ls -R operator-repo
+          cd operator-repo
+          git fetch --all
+          git branch -r | grep -v '\->' | sed 's/origin\///' | sort -V | tail -n 2 > latest_branches.txt
 
-      - name: List RBC repo files
+      - name: Read latest branches
         run: |
-          echo "Listing files in rbc-repo:"
-          ls -R rbc-repo
+          latest_branches=$(cat operator-repo/latest_branches.txt)
+          latest_branch=$(echo "$latest_branches" | head -n 1)
+          second_latest_branch=$(echo "$latest_branches" | tail -n 1)
+          echo "LATEST_BRANCH=${latest_branch}" >> $GITHUB_ENV
+          echo "SECOND_LATEST_BRANCH=${second_latest_branch}" >> $GITHUB_ENV
 
-      - name: Get latest rhoai-x.y branches
-        id: get-branches
-        run: |
-          curl -H "Authorization: token ${{ secrets.BUNDLE_SYNC_TOKEN }}" \
-               -H "Accept: application/vnd.github.v3+json" \
-               https://api.github.com/repos/DevOps-automation-tasks/rhods-operator/branches \
-               | jq -r '.[] | select(.name | startswith("rhoai-")) | .name' \
-               | head -n 2 > latest_branches.txt
-          
-          # Output the branches for debugging
-          cat latest_branches.txt
-
-      - name: Read branch names
-        id: branches
-        run: |
-          latest_branches=$(cat latest_branches.txt)
-          echo "Branches: $latest_branches"
-          branches=($(echo "$latest_branches" | tr '\n' ' '))
-          echo "LATEST_BRANCH=${branches[0]}" >> $GITHUB_ENV
-          echo "SECOND_LATEST_BRANCH=${branches[1]}" >> $GITHUB_ENV
-
-      - name: Fetch branches
-        id: fetch-branches
+      - name: Debug output
         run: |
           echo "LATEST_BRANCH=${LATEST_BRANCH}"
           echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
-        env:
-          LATEST_BRANCH: ${{ env.LATEST_BRANCH }}
-          SECOND_LATEST_BRANCH: ${{ env.SECOND_LATEST_BRANCH }}
 
-      - name: Sync Bundle
-        run: |
-          # Retrieve branch names from environment variables
-          latest_branch=${LATEST_BRANCH}
-          second_latest_branch=${SECOND_LATEST_BRANCH}
-
-          echo "Syncing bundle for branches: $latest_branch and $second_latest_branch"
-
-          # Check if directories exist before trying to cd into them
-          if [ -d "operator-repo/path/to/bundle/files" ]; then
-            cd operator-repo/path/to/bundle/files || exit 1
-
-            # Remove channels, default channel, replaces, and skip ranges
-            rm -rf channels default-channel replaces skip-ranges
-
-            # Sync bundle files
-            cp -r * ../../rbc-repo/bundle/
-          else
-            echo "Directory 'operator-repo/path/to/bundle/files' does not exist"
-            exit 1
-          fi
-
-          # Overwrite Dockerfile in the RBC repo
-          if [ -d "rbc-repo/bundle" ]; then
-            cd ../../rbc-repo || exit 1
-            cp -f bundle/Dockerfile .
-          else
-            echo "Directory 'rbc-repo/bundle' does not exist"
-            exit 1
-          fi
-        env:
-          LATEST_BRANCH: ${{ env.LATEST_BRANCH }}
-          SECOND_LATEST_BRANCH: ${{ env.SECOND_LATEST_BRANCH }}
-
-      - name: Commit and push changes to RBC repo
+      - name: Sync Bundle Files
         run: |
           cd rbc-repo
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          # Remove existing channels, default channel, replaces, and skip ranges
+          # Ensure this is compatible with your setup
+          find path/to/bundle -name '*.csv' -exec sed -i '/channels:/d' {} \;
+          find path/to/bundle -name '*.csv' -exec sed -i '/default_channel:/d' {} \;
+          find path/to/bundle -name '*.csv' -exec sed -i '/replaces:/d' {} \;
+          find path/to/bundle -name '*.csv' -exec sed -i '/skip_ranges:/d' {} \;
+
+          # Overwrite the bundle Dockerfile
+          cp ../operator-repo/path/to/bundle/Dockerfile path/to/bundle/Dockerfile
+
+          # Sync CSV, metadata, and custom resource definitions
+          cp -r ../operator-repo/path/to/bundle/* path/to/bundle/
+
+      - name: Commit and push changes
+        run: |
+          cd rbc-repo
           git add .
-          git commit -m "Sync bundle from operator repo"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          git commit -m "Sync bundle from ${LATEST_BRANCH} and ${SECOND_LATEST_BRANCH}"
+          git push
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
