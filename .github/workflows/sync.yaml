@@ -1,0 +1,119 @@
+name: Sync Bundle to RBC Repo
+
+on:
+  push:
+    paths:
+      - 'path/to/bundle/files/**'
+  workflow_dispatch: # Allows the workflow to be triggered manually
+
+jobs:
+  determine-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      latest_branch: ${{ steps.set-branches.outputs.latest_branch }}
+      previous_branch: ${{ steps.set-branches.outputs.previous_branch }}
+    steps:
+      - name: Install GitHub CLI and jq
+        run: sudo apt-get install -y gh jq
+
+      - name: Authenticate with GitHub CLI
+        run: echo "${{ secrets.BUNDLE_SYNC_TOKEN }}" | gh auth login --with-token
+        env:
+          BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+
+      - name: Get and Sort RHOAI Branches
+        id: get-branches
+        run: |
+          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
+          
+          # Sort the branches numerically by version
+          sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
+
+          echo "Sorted branches:"
+          echo "$sorted_branches"
+
+          # Save branches to a file
+          echo "$sorted_branches" > branches.txt
+          echo "branches_file=branches.txt" >> $GITHUB_ENV
+
+      - name: Set Latest and Previous Branches
+        id: set-branches
+        run: |
+          # Read branches from the file
+          sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
+          
+          if [ -z "$sorted_branches" ]; then
+            echo "No branches found matching the pattern."
+            exit 1
+          fi
+
+          # Convert the space-separated list to a bash array
+          sorted_branches_array=($sorted_branches)
+          
+          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
+            echo "Not enough branches found."
+            exit 1
+          fi
+
+          # Parse the array
+          latest_branch=${sorted_branches_array[0]}
+          previous_branch=${sorted_branches_array[1]}
+
+          echo "Latest branch: $latest_branch"
+          echo "Previous branch: $previous_branch"
+
+          # Set outputs using environment files
+          echo "latest_branch=$latest_branch" >> $GITHUB_ENV
+          echo "previous_branch=$previous_branch" >> $GITHUB_ENV
+          echo "::set-output name=latest_branch::$latest_branch"
+          echo "::set-output name=previous_branch::$previous_branch"
+
+  sync-bundle:
+    needs: determine-branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RBC Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          path: rbc-repo
+          fetch-depth: 0 # Fetch all branches
+
+      - name: Sync bundle files to RBC Repo
+        run: |
+          branches=("${{ needs.determine-branches.outputs.latest_branch }}" "${{ needs.determine-branches.outputs.previous_branch }}")
+          for branch in "${branches[@]}"; do
+            echo "Syncing for branch: $branch"
+            cd rbc-repo
+
+            # Fetch the latest branches and check if the branch exists
+            git fetch origin
+            if git show-ref --verify --quiet refs/heads/$branch; then
+              git checkout $branch
+            else
+              echo "Branch $branch does not exist. Skipping."
+              continue
+            fi
+
+            # Sync the CSV, metadata, and CRDs
+            rsync -av --delete ../path/to/bundle/files/ bundle/
+
+            # Retain the current image digests
+            yq eval '.spec.install.spec.deployments[] |= (.spec.template.spec.containers[] |= (.image = input_image))' -i $(find bundle -name '*.clusterserviceversion.yaml')
+
+            # Sync the Dockerfile and overwrite it
+            cp ../path/to/bundle/files/Dockerfile bundle/
+
+            git add .
+            git commit -m "Sync bundle from operator repo for $branch"
+            git push origin $branch
+          done
+
+    - name: Create Pull Request to RBC Repo
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+        branch: sync-bundle-${{ needs.determine-branches.outputs.latest_branch }}
+        title: "Sync bundle from operator repo for ${{ needs.determine-branches.outputs.latest_branch }}"
+        body: "This PR syncs the bundle files from the operator repo."
+        base: ${{ needs.determine-branches.outputs.latest_branch }}
