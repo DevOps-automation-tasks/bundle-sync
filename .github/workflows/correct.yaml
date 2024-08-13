@@ -73,11 +73,11 @@ name: ci check
 
 on:
   push:
+    branches:
+      - 'rhoai-*'
     paths:
       - 'rhods-operator/bundle/**' 
       - 'rhods-operator/Dockerfiles/bundle.Dockerfile'
-    branches:
-      - 'rhoai-*'
   workflow_dispatch:
     inputs:
       branch:
