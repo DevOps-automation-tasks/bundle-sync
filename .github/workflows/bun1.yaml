@@ -1,77 +1,85 @@
-name: Sync23
+name: Sync Bundle
 
 on:
   push:
     paths:
       - 'bundle/**'
-
-  workflow_dispatch: # Manual trigger
+    branches:
+      - 'rhoai-*'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync'
+        required: false
+        default: 'main'
 
 jobs:
-  sync:
+  sync-bundle:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout RBC repo
-      uses: actions/checkout@v3
-      with:
-        repository: DevOps-automation-tasks/RHOAI-Build-Config
-        path: rbc-repo
-        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          path: operator-repo
+          fetch-depth: 0
 
-    - name: Checkout Operator repo
-      uses: actions/checkout@v3
-      with:
-        repository: DevOps-automation-tasks/rhods-operator
-        path: operator-repo
-        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+      - name: Checkout RBC Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          path: rbc-repo
+          fetch-depth: 0
 
-    - name: Fetch branches from Operator repo
-      run: |
-        cd operator-repo
-        git fetch --all
-        git branch -r
+      - name: Set up Git for RBC Repo
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
-    - name: Determine release branches
-      id: branches
-      run: |
-        cd operator-repo
-        branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V | tail -n 2)
-        echo "branches=$branches" >> $GITHUB_ENV
-
-    - name: Sync bundle for each branch
-      run: |
-        for branch in $(echo ${{ env.branches }}); do
-          echo "Syncing branch: $branch"
+      - name: Sync Bundle to RBC Repo
+        run: |
           cd operator-repo
           
-          # Checkout the branch from the operator repo
-          git checkout $branch
-          
-          # Prepare bundle sync (remove channels, default channel, replaces, and skip ranges)
-          # Example commands - adjust based on actual commands needed
-          # remove-channels-command
+          # Extract branches matching the x.y pattern
+          operator_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///')
 
-          # Sync CSV, metadata, CRDs
-          # Syncing commands here - adjust based on actual sync process
-          # sync-csv-command
-          # sync-metadata-command
-          # sync-crds-command
-          
-          # Copy the updated bundle Dockerfile to RBC repo
-          cp Dockerfile ../rbc-repo/bundle/Dockerfile
-          
-          # Sync other bundle files to RBC repo
-          cp -r ./* ../rbc-repo/bundle/
-
-          # Add, commit, and push changes to RBC repo
           cd ../rbc-repo
-          git add bundle/
-          git commit -m "Update bundle for branch $branch"
-          git push origin $branch
 
-        done
+          # Determine branches to sync
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger: Sync specific branch
+            branch="${{ github.event.inputs.branch }}"
+            operator_branches="$branch"
+          fi
 
-    - name: Clean up
-      run: |
-        rm -rf rbc-repo
-        rm -rf operator-repo
+          for branch in $operator_branches; do
+            # Check if the branch exists in RBC repo
+            if git show-ref --verify --quiet refs/heads/$branch; then
+              echo "Syncing $branch"
+
+              # Checkout the branch from RBC repo
+              git checkout $branch
+
+              # Checkout the branch from the operator repo
+              cd ../operator-repo
+              git checkout $branch
+
+              # Remove unwanted fields from bundle files
+              sed -i '/channels:/d' bundle/*.yaml
+              sed -i '/defaultChannel:/d' bundle/*.yaml
+              sed -i '/replaces:/d' bundle/*.yaml
+              sed -i '/skipRanges:/d' bundle/*.yaml
+
+              # Copy files from operator repo to RBC repo
+              cp bundle/*.yaml ../rbc-repo/bundle/
+              cp bundle/Dockerfile ../rbc-repo/bundle/Dockerfile
+
+              # Commit and push changes to RBC repo
+              cd ../rbc-repo
+              git add bundle
+              git commit -m "Sync bundle from operator repo for branch $branch"
+              git push origin $branch
+            else
+              echo "Branch $branch does not exist in RBC repo. Skipping..."
+            fi
+          done
