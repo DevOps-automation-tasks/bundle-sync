@@ -1,9 +1,9 @@
-name: new
+name: Sync Bundle new
 
 on:
   push:
     paths:
-      - 'path/to/bundle/files/**'
+      - 'bundle/**'
   workflow_dispatch: # Allows the workflow to be triggered manually
 
 jobs:
@@ -128,13 +128,13 @@ jobs:
               git checkout $branch
 
               # Sync the CSV, metadata, and CRDs
-              rsync -av --delete ../path/to/bundle/files/ bundle/
+              rsync -av --delete ../bundle/ bundle/
 
               # Retain the current image digests
               yq eval '.spec.install.spec.deployments[] |= (.spec.template.spec.containers[] |= (.image = input_image))' -i $(find bundle -name '*.clusterserviceversion.yaml')
 
               # Sync the Dockerfile and overwrite it
-              cp ../path/to/bundle/files/Dockerfile bundle/
+              cp ../bundle/Dockerfile bundle/
 
               git add .
               git commit -m "Sync bundle from operator repo for $branch"
