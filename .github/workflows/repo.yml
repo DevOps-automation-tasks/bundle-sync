@@ -3,8 +3,8 @@ name: 01 Repo
 on:
   push:
     paths:
-      - 'bundle/**'
-      - 'Dockerfiles/bundle.Dockerfile'
+      - 'rhods-operator/bundle/**' 
+      - 'rhods-operator/Dockerfiles/bundle.Dockerfile'
     branches:
       - 'rhoai-*'
   workflow_dispatch:
