@@ -50,26 +50,37 @@ jobs:
 
       - name: Sync Bundle
         run: |
+          # Retrieve branch names from environment variables
           latest_branch=${LATEST_BRANCH}
           second_latest_branch=${SECOND_LATEST_BRANCH}
 
           echo "Syncing bundle for branches: $latest_branch and $second_latest_branch"
 
-          # Example commands to perform the sync process
-          # 1. Remove channels, default channel, replaces, and skip ranges from the operator repo.
-          # 2. Sync CSV, metadata, and all custom resource definitions.
-          # 3. Overwrite bundle Dockerfile in the RBC repo.
+          # Check if directories exist before trying to cd into them
+          if [ -d "operator-repo/path/to/bundle/files" ]; then
+            cd operator-repo/path/to/bundle/files || exit 1
 
-          # Example commands (replace these with actual commands/scripts):
-          cd operator-repo/path/to/bundle/files
-          rm -rf channels default-channel replaces skip-ranges
+            # Remove channels, default channel, replaces, and skip ranges
+            rm -rf channels default-channel replaces skip-ranges
 
-          # Sync bundle files
-          cp -r * ../../rbc-repo/bundle/
+            # Sync bundle files
+            cp -r * ../../rbc-repo/bundle/
+          else
+            echo "Directory 'operator-repo/path/to/bundle/files' does not exist"
+            exit 1
+          fi
 
-          cd ../../rbc-repo
-          # Overwrite Dockerfile (Example command, adjust as needed)
-          cp -f bundle/Dockerfile .
+          # Overwrite Dockerfile in the RBC repo
+          if [ -d "rbc-repo/bundle" ]; then
+            cd ../../rbc-repo || exit 1
+            cp -f bundle/Dockerfile .
+          else
+            echo "Directory 'rbc-repo/bundle' does not exist"
+            exit 1
+          fi
+        env:
+          LATEST_BRANCH: ${{ steps.fetch-branches.outputs.latest_branch }}
+          SECOND_LATEST_BRANCH: ${{ steps.fetch-branches.outputs.second_latest_branch }}
 
       - name: Commit and push changes to RBC repo
         run: |
