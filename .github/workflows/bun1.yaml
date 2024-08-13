@@ -1,111 +1,72 @@
-name: bun21
+name: bun12
+
 on:
+  push:
+    paths:
+      - 'bundle/**'
   workflow_dispatch:
 
 jobs:
-  sync:
+  sync-bundle:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Operator Repo
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/rhods-operator
-          path: operator-repo
-        id: checkout-operator-repo
-
-      - name: Checkout RBC Repo
+      - name: Checkout the repository
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
-          path: rbc-repo
-        id: checkout-rbc-repo
+          ref: main
 
-      - name: Get Branches
-        id: get-branches
+      - name: Fetch branches from the Operator repo
         run: |
-          # Fetch branches from the Operator repo
-          cd operator-repo
-          git fetch --all
-          operator_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
-          echo "Operator branches: $operator_branches"
-          echo "$operator_branches" > ../branches-operator.txt
-          cd ..
+          # Fetch all branches and tags
+          git fetch origin
 
-          # Fetch branches from the RBC repo
-          cd rbc-repo
-          git fetch --all
-          rbc_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
-          echo "RBC branches: $rbc_branches"
-          echo "$rbc_branches" > ../branches-rbc.txt
-          cd ..
+          # List all remote branches matching the pattern and sort them
+          branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
 
-          # Find latest and previous branches
-          latest_branch=$(head -n 1 branches-operator.txt)
-          previous_branch=$(sed -n '2p' branches-operator.txt)
-          echo "Latest branch: $latest_branch"
-          echo "Previous branch: $previous_branch"
+          # Get the latest and second latest branches
+          latest_branch=$(echo "$branches" | tail -n 1)
+          previous_branch=$(echo "$branches" | tail -n 2 | head -n 1)
 
-      - name: Sync Branches
+          # Set the branches as environment variables
+          echo "LATEST_BRANCH=$latest_branch" >> $GITHUB_ENV
+          echo "PREVIOUS_BRANCH=$previous_branch" >> $GITHUB_ENV
+
+          echo "Latest branch: $LATEST_BRANCH"
+          echo "Previous branch: $PREVIOUS_BRANCH"
+
+      - name: Check branches and sync
         run: |
-          # Read branches from the files
-          operator_branches=$(cat branches-operator.txt | tr '\n' ' ')
-          rbc_branches=$(cat branches-rbc.txt | tr '\n' ' ')
-          
-          if [ -z "$operator_branches" ] || [ -z "$rbc_branches" ]; then
-            echo "No branches found."
-            exit 1
-          fi
-          
-          # Convert the space-separated list to a bash array
-          operator_branches_array=($operator_branches)
-          rbc_branches_array=($rbc_branches)
-          
-          if [ ${#operator_branches_array[@]} -lt 2 ]; then
-            echo "Not enough branches found."
-            exit 1
-          fi
-          
-          # Parse the array
-          latest_branch=${operator_branches_array[0]}
-          previous_branch=${operator_branches_array[1]}
-          
-          echo "Latest branch: $latest_branch"
-          echo "Previous branch: $previous_branch"
-          
-          branches=("${latest_branch}" "${previous_branch}")
-          
-          for branch in "${branches[@]}"; do
+          # Function to sync branch
+          sync_branch() {
+            local branch=$1
             echo "Syncing for branch: $branch"
             
-            # Check if the branch exists in both repos
-            if [[ " ${rbc_branches_array[@]} " =~ " ${branch} " ]] && [[ " ${operator_branches_array[@]} " =~ " ${branch} " ]]; then
-              echo "Branch $branch exists in both repos. Syncing..."
-              
-              # Navigate to the RBC repo directory
-              cd rbc-repo
-              git checkout $branch
+            # Fetch the latest changes from the branch
+            git fetch origin $branch
 
-              # Navigate to the Operator repo directory
-              cd ../operator-repo
-              git checkout $branch
+            # Checkout the branch
+            git checkout $branch
 
-              # Sync the bundle files from the Operator repo
-              rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
+            # Your sync logic here
+            # For example:
+            # rsync -av --delete ./bundle/ path/to/sync/
 
-              # Overwrite the Dockerfile
-              cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
+            # Commit changes and push if necessary
+            # git add .
+            # git commit -m "Syncing branch $branch"
+            # git push origin $branch
+          }
 
-              # Navigate back to RBC repo
-              cd ../rbc-repo
+          # Sync the latest and previous branches
+          if [ -n "$LATEST_BRANCH" ]; then
+            sync_branch "$LATEST_BRANCH"
+          else
+            echo "No latest branch found. Skipping sync for latest branch."
+          fi
 
-              git add .
-              git commit -m "Sync bundle from operator repo for $branch"
-              git push origin $branch
-            else
-              echo "Branch $branch does not exist in one or both repos. Skipping..."
-            fi
-            
-            # Navigate back to the root directory
-            cd ..
-          done
-
+          if [ -n "$PREVIOUS_BRANCH" ]; then
+            sync_branch "$PREVIOUS_BRANCH"
+          else
+            echo "No previous branch found. Skipping sync for previous branch."
+          fi
