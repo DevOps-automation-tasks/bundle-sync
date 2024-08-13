@@ -1,11 +1,11 @@
-name: Sync12
+name: Sync Bundle
 
 on:
   push:
     paths:
       - 'bundle/**'
-    branches:
-      - 'main' # Adjust if you want to listen to a specific branch in the operator repo
+
+  workflow_dispatch: # Manual trigger
 
 jobs:
   sync:
