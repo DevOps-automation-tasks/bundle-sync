@@ -1,4 +1,4 @@
-name: 01 RBC Repo
+name: Sync Bundle to RBC Repo
 
 on:
   push:
@@ -22,29 +22,39 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.ref }}
 
-      - name: Remove olm.skipRange from the CSV file
+      - name: List files in source directories
         run: |
-          sed -i '/ olm.skipRange/d' bundle/manifests/rhods-operator.clusterserviceversion.yaml
+          echo "Contents of bundle directory:"
+          ls -R bundle/
+          echo "Contents of Dockerfiles directory:"
+          ls -R Dockerfiles/
 
       - name: Checkout RBC repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.ref }}
+          path: rbc_repo  # Checkout to a specified directory
 
       - name: Sync bundle to RBC repo
         run: |
-          cp -r bundle/* bundle/
-          cp Dockerfiles/bundle.Dockerfile bundle/Dockerfile
+          mkdir -p rbc_repo/bundle/
+          cp -r bundle/* rbc_repo/bundle/
+          cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
+
+      - name: List files in RBC repo after sync
+        run: |
+          echo "Contents of rbc_repo/bundle directory after syncing:"
+          ls -R rbc_repo/bundle/
 
       - name: Retain existing image digests
         run: |
-          # Logic to retain existing image digests
+          # Add logic here to retain image digests from the RBC repo
           echo "Retain image digests logic goes here."
 
       - name: Commit and push changes to RBC repo
         run: |
+          cd rbc_repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
