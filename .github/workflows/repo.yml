@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
           ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Checkout RHOAI-Build-Config repo
