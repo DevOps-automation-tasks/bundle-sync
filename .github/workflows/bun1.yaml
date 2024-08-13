@@ -1,4 +1,4 @@
-name: Sync Bundle
+name: bundle12
 
 on:
   push:
