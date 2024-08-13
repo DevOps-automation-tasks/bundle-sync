@@ -1,4 +1,4 @@
-name: Sync Bundle to RBC Repo
+name: Sync new
 
 on:
   push:
@@ -27,16 +27,14 @@ jobs:
           # Get branches from the API
           branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches)
           echo "Raw branches JSON:"
-          echo "$branches_json"
+          echo "$branches_json" | jq .
 
           # Filter and sort branches
           branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
-
           echo "Filtered branches:"
           echo "$branches"
 
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
-
           echo "Sorted branches:"
           echo "$sorted_branches"
 
