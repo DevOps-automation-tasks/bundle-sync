@@ -30,13 +30,14 @@ jobs:
         with:
           python-version: 3.x
 
-      - name: List directory contents
+      - name: List files in repository
         run: |
           ls -al
+          ls -al scripts  # Adjust this if `requirements.txt` is supposed to be in `scripts`
 
       - name: Install dependencies
         run: |
-          pip install -r scripts/requirements.txt
+          pip install -r requirements.txt  # Update this path as needed
 
       - name: Sync Bundle
         run: |
