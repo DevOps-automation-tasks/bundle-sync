@@ -4,77 +4,56 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
+    branches:
+      - 'main'
 
 jobs:
-  sync-bundle:
+  sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout RHOAI-Build-Config repo
+      - name: Checkout RBC repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
 
-      - name: Checkout rhods-operator repo
+      - name: Checkout Operator repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
-          ref: main  # Ensure this is the correct branch for fetching bundle files
+          ref: ${{ github.ref }}
 
-      - name: Get the latest branches
-        id: get-branches
+      - name: Sync Bundle Files
         run: |
-          # Get the latest and second latest branches
-          latest_branch=$(git -C operator-repo for-each-ref --sort=-committerdate --format '%(refname:short)' refs/heads/ | head -n 1)
-          second_latest_branch=$(git -C operator-repo for-each-ref --sort=-committerdate --format '%(refname:short)' refs/heads/ | sed -n '2p')
-          echo "LATEST_BRANCH=$latest_branch" >> $GITHUB_ENV
-          echo "SECOND_LATEST_BRANCH=$second_latest_branch" >> $GITHUB_ENV
+          # Define directories
+          OPERATOR_BUNDLE_DIR="operator-repo/path/to/bundle/files"
+          RBC_BUNDLE_DIR="rbc-repo/bundle"
 
-      - name: Sync bundle for latest branches
-        run: |
-          # Checkout the branches to sync
-          git -C operator-repo checkout $LATEST_BRANCH
-          # Perform the sync
-          # (Replace with actual sync commands)
-          rsync -av --delete operator-repo/path/to/bundle/files/ rbc-repo/bundle/
-          # Commit and push changes
-          git -C rbc-repo add bundle
-          git -C rbc-repo commit -m "Sync bundle from $LATEST_BRANCH"
-          git -C rbc-repo push
+          # Copy bundle files from operator repo to RBC repo
+          echo "Syncing bundle files from operator repo to RBC repo..."
+          rsync -av --delete "$OPERATOR_BUNDLE_DIR/" "$RBC_BUNDLE_DIR/"
 
-      - name: Sync bundle for second latest branches
+      - name: Remove Old Files
         run: |
-          # Checkout the branches to sync
-          git -C operator-repo checkout $SECOND_LATEST_BRANCH
-          # Perform the sync
-          # (Replace with actual sync commands)
-          rsync -av --delete operator-repo/path/to/bundle/files/ rbc-repo/bundle/
-          # Commit and push changes
-          git -C rbc-repo add bundle
-          git -C rbc-repo commit -m "Sync bundle from $SECOND_LATEST_BRANCH"
-          git -C rbc-repo push
+          # Remove old files from RBC repo
+          echo "Removing old files from RBC repo..."
+          find rbc-repo/bundle -type f -not -path 'rbc-repo/bundle/new-files/*' -delete
 
-      - name: Remove channels and metadata
+      - name: Commit Changes
         run: |
-          # Perform the removal operations on the RBC repo
-          # (Replace with actual commands)
-          cd rbc-repo/bundle
-          sed -i '/channels/d' bundle.yaml
-          sed -i '/default-channel/d' bundle.yaml
-          sed -i '/replaces/d' bundle.yaml
-          sed -i '/skip-range/d' bundle.yaml
-          # Commit and push changes
-          git add bundle.yaml
-          git commit -m "Remove channels, default channel, replaces, and skip ranges"
-          git push
-          
-      - name: Overwrite Dockerfile in RBC repo
+          cd rbc-repo
+          git add .
+          git commit -m "Sync bundle from operator repo"
+          git push origin main
+
+      - name: Validate Sync
         run: |
-          # Replace Dockerfile in RBC repo
-          cp operator-repo/Dockerfile rbc-repo/bundle/Dockerfile
-          # Commit and push changes
-          git -C rbc-repo add bundle/Dockerfile
-          git -C rbc-repo commit -m "Overwrite Dockerfile"
-          git -C rbc-repo push
+          echo "Validating sync..."
+          # Here you can add any validation steps if needed
+
+      - name: Clean Up
+        run: |
+          # Remove temporary directories
+          rm -rf rbc-repo
+          rm -rf operator-repo
