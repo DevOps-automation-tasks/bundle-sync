@@ -9,6 +9,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout operator repo
         uses: actions/checkout@v3
@@ -54,7 +55,7 @@ jobs:
 
           echo "Syncing bundle for branches: $latest_branch and $second_latest_branch"
 
-          # Sync process
+          # Example commands to perform the sync process
           # 1. Remove channels, default channel, replaces, and skip ranges from the operator repo.
           # 2. Sync CSV, metadata, and all custom resource definitions.
           # 3. Overwrite bundle Dockerfile in the RBC repo.
