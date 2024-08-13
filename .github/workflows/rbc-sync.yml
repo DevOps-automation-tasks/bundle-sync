@@ -1,4 +1,4 @@
-name: RBC repo01
+name: Sync Bundle to RBC Repo
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - 'bundle/**'
     branches:
       - 'rhoai-x.y*'
+
+  workflow_dispatch:  # This adds the manual trigger
 
 jobs:
   sync-bundle:
@@ -37,14 +39,4 @@ jobs:
 
       - name: Retain existing image digests
         run: |
-          # Add commands to retain image digests
-          # Implement logic to keep existing digests.
-          echo "Retain image digests logic goes here."
-
-      - name: Commit and push changes to RBC repo
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Sync bundle changes from operator repo"
-          git push origin ${{ github.ref }}
+         
