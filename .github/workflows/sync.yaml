@@ -6,6 +6,7 @@ on:
       - 'path/to/bundle/files/**'
     branches:
       - 'main'  # Adjust this to your main branch or add more branches if needed
+  workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
   sync-bundle:
