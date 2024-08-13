@@ -1,0 +1,58 @@
+name: RBC Repos
+
+on:
+  push:
+    paths:
+      - 'bundle/**'
+    branches:
+      - 'rhoai-x.y*'  # Adjust this pattern to match your release branches
+
+jobs:
+  sync-bundle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+
+      - name: Remove specific entries from bundle
+        run: |
+          # Add commands to modify the bundle file
+          # For example, you might use sed or other tools to remove lines
+          # Adjust these commands based on the structure of your bundle file
+          sed -i '/channels/d' bundle/metadata.yaml
+          sed -i '/default-channel/d' bundle/metadata.yaml
+          sed -i '/replaces/d' bundle/metadata.yaml
+          sed -i '/skip-ranges/d' bundle/metadata.yaml
+
+      - name: Checkout RBC repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+
+      - name: Sync bundle to RBC repo
+        run: |
+          # Overwrite the bundle files and Dockerfile
+          cp -r bundle/* ../RHOAI-Build-Config/bundle/
+          cp bundle/Dockerfile ../RHOAI-Build-Config/bundle/Dockerfile
+
+      - name: Retain existing image digests
+        run: |
+          # Add commands to retain image digests
+          # This is a placeholder. Implement logic to keep existing digests.
+          # For example, you might fetch existing digests and compare/update them.
+          echo "Retain image digests logic goes here."
+
+      - name: Commit and push changes to RBC repo
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Sync bundle changes from operator repo"
+          git push origin ${{ github.ref }}
