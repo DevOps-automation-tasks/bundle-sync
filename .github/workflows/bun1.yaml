@@ -1,4 +1,4 @@
-name: bun1
+name: bun12
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
-          ref: ${{ github.event.head_commit.branch }}  # Fetch changes from the branch of the latest commit
+          path: operator-repo
         id: checkout-operator-repo
 
       - name: Checkout RBC Repo
@@ -24,6 +24,14 @@ jobs:
           path: rbc-repo
           fetch-depth: 0 # Fetch all branches
         id: checkout-rbc-repo
+
+      - name: Install GitHub CLI and jq
+        run: sudo apt-get install -y gh jq
+
+      - name: Authenticate with GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth login --with-token <<< $GH_TOKEN
 
       - name: Determine Branches
         id: determine-branches
@@ -79,10 +87,10 @@ jobs:
               git checkout $branch
 
               # Sync the bundle files from the operator repo
-              rsync -av --delete ../bundle/ bundle/
+              rsync -av --delete ../operator-repo/bundle/ bundle/
 
               # Overwrite the Dockerfile
-              cp ../bundle/Dockerfile bundle/
+              cp ../operator-repo/bundle/Dockerfile bundle/
 
               git add .
               git commit -m "Sync bundle from operator repo for $branch"
@@ -98,7 +106,7 @@ jobs:
       - name: Create Pull Request to RBC Repo
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           branch: sync-bundle-${{ env.latest_branch }}
           title: "Sync bundle from operator repo for ${{ env.latest_branch }}"
           body: "This PR syncs the bundle files from the operator repo."
