@@ -88,12 +88,12 @@ jobs:
 
             # Fetch the latest branches and check if the branch exists
             git fetch origin
-            if git show-ref --verify --quiet refs/heads/$branch; then
-              git checkout $branch
-            else
+            if ! git show-ref --verify --quiet refs/heads/$branch; then
               echo "Branch $branch does not exist. Skipping."
               continue
             fi
+
+            git checkout $branch
 
             # Sync the CSV, metadata, and CRDs
             rsync -av --delete ../path/to/bundle/files/ bundle/
