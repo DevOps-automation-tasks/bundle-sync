@@ -50,7 +50,7 @@ jobs:
           # Convert the space-separated list to a bash array
           sorted_branches_array=($sorted_branches)
           
-          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
+          if [ ${#sorted_branches_array[@]} -lt 2]; then
             echo "Not enough branches found."
             exit 1
           fi
@@ -109,11 +109,11 @@ jobs:
             git push origin $branch
           done
 
-    - name: Create Pull Request to RBC Repo
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-        branch: sync-bundle-${{ needs.determine-branches.outputs.latest_branch }}
-        title: "Sync bundle from operator repo for ${{ needs.determine-branches.outputs.latest_branch }}"
-        body: "This PR syncs the bundle files from the operator repo."
-        base: ${{ needs.determine-branches.outputs.latest_branch }}
+      - name: Create Pull Request to RBC Repo
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          branch: sync-bundle-${{ needs.determine-branches.outputs.latest_branch }}
+          title: "Sync bundle from operator repo for ${{ needs.determine-branches.outputs.latest_branch }}"
+          body: "This PR syncs the bundle files from the operator repo."
+          base: ${{ needs.determine-branches.outputs.latest_branch }}
