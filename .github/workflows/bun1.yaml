@@ -1,4 +1,4 @@
-name: Sync Bundle
+name: bun21
 on:
   workflow_dispatch:
 
