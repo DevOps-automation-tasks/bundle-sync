@@ -32,21 +32,27 @@ jobs:
                https://api.github.com/repos/DevOps-automation-tasks/rhods-operator/branches \
                | jq -r '.[] | select(.name | startswith("rhoai-")) | .name' \
                | head -n 2 > latest_branches.txt
+          
+          # Output the branches for debugging
+          cat latest_branches.txt
 
       - name: Read branch names
         id: branches
         run: |
           latest_branches=$(cat latest_branches.txt)
-          echo "::set-output name=branches::$latest_branches"
+          echo "Branches: $latest_branches"
+          branches=($(echo "$latest_branches" | tr '\n' ' '))
+          echo "LATEST_BRANCH=${branches[0]}" >> $GITHUB_ENV
+          echo "SECOND_LATEST_BRANCH=${branches[1]}" >> $GITHUB_ENV
 
       - name: Fetch branches
         id: fetch-branches
         run: |
-          branches=($(echo "${{ steps.branches.outputs.branches }}" | tr '\n' ' '))
-          latest_branch="${branches[0]}"
-          second_latest_branch="${branches[1]}"
-          echo "LATEST_BRANCH=$latest_branch" >> $GITHUB_ENV
-          echo "SECOND_LATEST_BRANCH=$second_latest_branch" >> $GITHUB_ENV
+          echo "LATEST_BRANCH=${LATEST_BRANCH}"
+          echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
+        env:
+          LATEST_BRANCH: ${{ env.LATEST_BRANCH }}
+          SECOND_LATEST_BRANCH: ${{ env.SECOND_LATEST_BRANCH }}
 
       - name: Sync Bundle
         run: |
@@ -79,8 +85,8 @@ jobs:
             exit 1
           fi
         env:
-          LATEST_BRANCH: ${{ steps.fetch-branches.outputs.latest_branch }}
-          SECOND_LATEST_BRANCH: ${{ steps.fetch-branches.outputs.second_latest_branch }}
+          LATEST_BRANCH: ${{ env.LATEST_BRANCH }}
+          SECOND_LATEST_BRANCH: ${{ env.SECOND_LATEST_BRANCH }}
 
       - name: Commit and push changes to RBC repo
         run: |
