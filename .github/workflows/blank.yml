@@ -33,12 +33,11 @@ jobs:
           echo "$sorted_branches"
 
           # Save branches to an environment file
-          echo "sorted_branches=${sorted_branches}" >> $GITHUB_ENV
+          echo "sorted_branches=$sorted_branches" >> $GITHUB_ENV
 
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
-          # Load sorted branches from the environment variable
           branches="${{ env.sorted_branches }}"
           if [ -z "$branches" ]; then
             echo "No branches found matching the pattern."
