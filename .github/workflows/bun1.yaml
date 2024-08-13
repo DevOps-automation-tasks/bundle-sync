@@ -1,10 +1,10 @@
-name: bun78
+name: Sync Bundle
 
 on:
   push:
     paths:
       - 'bundle/**'
-  workflow_dispatch: # Allows the workflow to be triggered manually
+  workflow_dispatch:
 
 jobs:
   sync-bundle:
@@ -15,7 +15,7 @@ jobs:
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
-          fetch-depth: 0 # Fetch all branches
+          fetch-depth: 0
         id: checkout-operator-repo
 
       - name: Checkout RBC Repo
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
-          fetch-depth: 0 # Fetch all branches
+          fetch-depth: 0
         id: checkout-rbc-repo
 
       - name: Install GitHub CLI and jq
@@ -34,24 +34,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Set GH_TOKEN for GitHub CLI commands
           export GH_TOKEN=${GH_TOKEN}
 
-          # Get branches from the API
           branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --header "Authorization: token ${GH_TOKEN}")
 
-          # Filter branches that follow the pattern "rhoai-x.y" and sort them
           branches=$(echo "$branches_json" | jq -r '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name] | sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
           echo "Filtered branches:"
           echo "$branches"
           
-          # Save branches to a file
           echo "$branches" > branches.txt
           echo "branches_file=branches.txt" >> $GITHUB_ENV
 
       - name: Sync Bundle Changes
         run: |
-          # Read branches from the file
           sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
           
           if [ -z "$sorted_branches" ]; then
@@ -59,7 +54,6 @@ jobs:
             exit 1
           fi
 
-          # Convert the space-separated list to a bash array
           sorted_branches_array=($sorted_branches)
           
           if [ ${#sorted_branches_array[@]} -lt 2 ]; then
@@ -67,7 +61,6 @@ jobs:
             exit 1
           fi
 
-          # Parse the array
           latest_branch=${sorted_branches_array[0]}
           previous_branch=${sorted_branches_array[1]}
 
@@ -84,6 +77,7 @@ jobs:
 
             # Fetch all branches from the remote
             git fetch origin
+            git branch -r
 
             # Verify the branch exists in the RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
@@ -99,6 +93,7 @@ jobs:
 
             # Fetch all branches from the remote
             git fetch origin
+            git branch -r
 
             # Verify the branch exists in the operator repo
             if git show-ref --verify --quiet refs/heads/$branch; then
