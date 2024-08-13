@@ -1,0 +1,61 @@
+name: Repo
+
+on:
+  push:
+    paths:
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
+    branches:
+      - 'rhoai-*'  # Adjust this to match your branch pattern
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync'
+        required: true
+        type: string
+  schedule:
+    - cron: '0 0 * * *'  # Adjust the schedule as needed
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rhods-operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.inputs.branch || github.ref }}
+          
+      - name: Checkout RHOAI-Build-Config repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          path: rbc_repo
+
+      - name: Sync bundle to RBC repo
+        run: |
+          mkdir -p rbc_repo/bundle/
+          cp -r bundle/* rbc_repo/bundle/
+          cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
+
+      - name: Retain image digests
+        run: |
+          cd rbc_repo
+          # Add your logic to retain image digests
+
+      - name: Commit and push changes to RBC repo
+        run: |
+          cd rbc_repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Sync bundle changes from rhods-operator repo" || echo "No changes to commit"
+          git push origin ${{ github.event.inputs.branch || github.ref }}
+
