@@ -1,0 +1,20 @@
+# .github/workflows/repo-dispatch.yml
+name: Repository Dispatch Trigger
+
+on:
+  repository_dispatch:
+    types: [sync]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rhods-operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.client_payload.branch }}  # Uses the branch from the dispatch event
+
+      - name: Display repository_dispatch event
+        run: echo "Repository dispatch event detected for branch ${{ github.event.client_payload.branch }}!"
