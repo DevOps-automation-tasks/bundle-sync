@@ -3,7 +3,7 @@ name: correct
 on:
   push:
     paths:
-      - 'rhods-operator/bundle/**'
+      - 'rhods-operator/bundle/**' 
       - 'rhods-operator/Dockerfiles/bundle.Dockerfile'
     branches:
       - 'rhoai-*'
@@ -30,16 +30,15 @@ jobs:
         with:
           repository: DevOps-automation-tasks/rhods-operator
           token: ${{ secrets.GITHUB_TOKEN }}
-          path: rhods-operator
-          ref: ${{ github.ref }}
-          
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
       - name: Checkout RHOAI-Build-Config repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
           path: rbc_repo
-          ref: ${{ github.ref }}
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Sync bundle to RBC repo
         run: |
@@ -47,30 +46,19 @@ jobs:
           cp -r rhods-operator/bundle/* rbc_repo/bundle/
           cp rhods-operator/Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
 
-      - name: Check for changes in RBC repo
+      - name: Update local branch and commit changes
         run: |
           cd rbc_repo
           git fetch origin
-          git diff --exit-code || echo "Changes detected"
-
-      - name: Commit changes if any
-        run: |
-          cd rbc_repo
+          git checkout ${{ github.event.inputs.branch || github.ref }}
+          git pull origin ${{ github.event.inputs.branch || github.ref }}
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Sync bundle changes from rhods-operator repo"
-            git push origin ${{ github.ref }}
-            echo "Changes committed and pushed"
-          fi
+          git commit -m "Sync bundle changes from rhods-operator repo" || echo "No changes to commit"
 
-      - name: Provide status message
+      - name: Push changes to RBC repo
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Changes have been made and pushed to the RBC repo."
-          else
-            echo "Everything is up to date. No changes were made."
-          fi
+          cd rbc_repo
+          git push origin ${{ github.event.inputs.branch || github.ref }}
+        if: startsWith(github.ref, 'refs/heads/rhoai-')
