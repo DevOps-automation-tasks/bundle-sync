@@ -1,13 +1,16 @@
-name: Syncpython
+name: Sync Bundle to RBC Repo
 
 on:
   push:
     paths:
-      - 'path/to/bundle/files/**'
-      
+      - 'path/to/bundle/files/**'  # Adjust this path to match where your bundle files are located
+    branches:
+      - 'main'  # Trigger only on pushes to the 'main' branch
+
 jobs:
   sync-bundle:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout operator repo
         uses: actions/checkout@v3
@@ -21,7 +24,7 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-          ref: ${{ github.event.ref }}
+          ref: ${{ github.ref }}  # Use the same branch as the trigger
 
       - name: Set up Python
         uses: actions/setup-python@v4
