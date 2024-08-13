@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
     branches:
       - 'rhoai-x.y*'
 
@@ -30,26 +31,20 @@ jobs:
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.GITHUB_TOKEN }}
-          path: rbc_repo  # Specify a path for the checkout
-
-      - name: Ensure target bundle directory exists
-        run: mkdir -p rbc_repo/bundle/
+          ref: ${{ github.ref }}
 
       - name: Sync bundle to RBC repo
         run: |
-          cp -r bundle/* rbc_repo/bundle/
-          cp bundle/Dockerfile rbc_repo/bundle/Dockerfile
+          cp -r bundle/* bundle/
+          cp Dockerfiles/bundle.Dockerfile bundle/Dockerfile
 
       - name: Retain existing image digests
         run: |
           # Logic to retain existing image digests
-          for file in rbc_repo/bundle/manifests/*.clusterserviceversion.yaml; do
-            yq eval '.spec.relatedImages |= map(select(.image | test("some-image-regex"))) + map(select(.image | test("some-other-image-regex"))) + map(select(.name | test("image-name"))) + map(select(.name | test("image-name-2")))' -i "$file"
-          done
+          echo "Retain image digests logic goes here."
 
       - name: Commit and push changes to RBC repo
         run: |
-          cd rbc_repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
