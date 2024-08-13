@@ -1,4 +1,4 @@
-name: bundle12
+name: 786
 
 on:
   push:
@@ -76,7 +76,7 @@ jobs:
             cd rbc-repo
 
             # Fetch all branches from the remote
-            git fetch origin
+            git fetch --all
             git branch -r
 
             # Verify the branch exists in the RBC repo
@@ -92,7 +92,7 @@ jobs:
             cd ../operator-repo
 
             # Fetch all branches from the remote
-            git fetch origin
+            git fetch --all
             git branch -r
 
             # Verify the branch exists in the operator repo
