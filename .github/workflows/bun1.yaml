@@ -1,4 +1,4 @@
-name: 786
+name: Sync Bundle
 on:
   workflow_dispatch:
 
@@ -28,7 +28,7 @@ jobs:
           git fetch --all
           operator_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
           echo "Operator branches: $operator_branches"
-          echo "$operator_branches" > ../branches.txt
+          echo "$operator_branches" > ../branches-operator.txt
           cd ..
 
           # Fetch branches from the RBC repo
@@ -36,36 +36,38 @@ jobs:
           git fetch --all
           rbc_branches=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | sort -V)
           echo "RBC branches: $rbc_branches"
-          echo "$rbc_branches" > ../branches.txt
+          echo "$rbc_branches" > ../branches-rbc.txt
           cd ..
 
           # Find latest and previous branches
-          latest_branch=$(head -n 1 branches.txt)
-          previous_branch=$(sed -n '2p' branches.txt)
+          latest_branch=$(head -n 1 branches-operator.txt)
+          previous_branch=$(sed -n '2p' branches-operator.txt)
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
 
       - name: Sync Branches
         run: |
-          # Read branches from the file
-          sorted_branches=$(cat branches.txt | tr '\n' ' ')
+          # Read branches from the files
+          operator_branches=$(cat branches-operator.txt | tr '\n' ' ')
+          rbc_branches=$(cat branches-rbc.txt | tr '\n' ' ')
           
-          if [ -z "$sorted_branches" ]; then
-            echo "No branches found matching the pattern."
+          if [ -z "$operator_branches" ] || [ -z "$rbc_branches" ]; then
+            echo "No branches found."
             exit 1
           fi
           
           # Convert the space-separated list to a bash array
-          sorted_branches_array=($sorted_branches)
+          operator_branches_array=($operator_branches)
+          rbc_branches_array=($rbc_branches)
           
-          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
+          if [ ${#operator_branches_array[@]} -lt 2 ]; then
             echo "Not enough branches found."
             exit 1
           fi
           
           # Parse the array
-          latest_branch=${sorted_branches_array[0]}
-          previous_branch=${sorted_branches_array[1]}
+          latest_branch=${operator_branches_array[0]}
+          previous_branch=${operator_branches_array[1]}
           
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
@@ -75,43 +77,35 @@ jobs:
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
             
-            # Navigate to the RBC repo directory
-            cd rbc-repo
-            
-            # Verify the branch exists in the RBC repo
-            if git show-ref --verify --quiet refs/heads/$branch; then
-              echo "Branch $branch exists in RBC repo. Checking out..."
+            # Check if the branch exists in both repos
+            if [[ " ${rbc_branches_array[@]} " =~ " ${branch} " ]] && [[ " ${operator_branches_array[@]} " =~ " ${branch} " ]]; then
+              echo "Branch $branch exists in both repos. Syncing..."
+              
+              # Navigate to the RBC repo directory
+              cd rbc-repo
               git checkout $branch
-            else
-              echo "Branch $branch does not exist in RBC repo. Skipping..."
-              cd ..
-              continue
-            fi
-            
-            # Navigate to the Operator repo directory
-            cd ../operator-repo
-            
-            # Verify the branch exists in the Operator repo
-            if git show-ref --verify --quiet refs/heads/$branch; then
-              echo "Branch $branch exists in Operator repo. Checking out..."
+
+              # Navigate to the Operator repo directory
+              cd ../operator-repo
               git checkout $branch
-            
+
               # Sync the bundle files from the Operator repo
               rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
-            
+
               # Overwrite the Dockerfile
               cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
-            
+
               # Navigate back to RBC repo
               cd ../rbc-repo
-            
+
               git add .
               git commit -m "Sync bundle from operator repo for $branch"
               git push origin $branch
             else
-              echo "Branch $branch does not exist in Operator repo. Skipping..."
+              echo "Branch $branch does not exist in one or both repos. Skipping..."
             fi
             
             # Navigate back to the root directory
             cd ..
           done
+
