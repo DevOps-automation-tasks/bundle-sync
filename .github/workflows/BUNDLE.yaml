@@ -51,7 +51,7 @@
 #           git push origin ${{ github.event.client_payload.branch }}
 
 
-name: Sync Bundle from rhods-operator
+name: to21
 
 on:
   repository_dispatch:
