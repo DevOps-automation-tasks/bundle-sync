@@ -1,4 +1,4 @@
-name: Sync ci
+name: Sync Bundle
 
 on:
   push:
@@ -39,6 +39,7 @@ jobs:
       - name: List Branches in RBC Repo
         run: |
           cd rbc-repo
+          git fetch --all
           git branch -a
 
       - name: Sync Bundle to RBC Repo
@@ -59,6 +60,9 @@ jobs:
 
           for branch in $operator_branches; do
             echo "Processing branch: $branch"
+
+            # Fetch all branches
+            git fetch --all
 
             # Check if the branch exists in RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
