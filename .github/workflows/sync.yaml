@@ -4,51 +4,57 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
-  workflow_dispatch:
+    branches:
+      - 'main'  # Adjust this to your main branch or add more branches if needed
 
 jobs:
   sync-bundle:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout rhods-operator repository
-      uses: actions/checkout@v3
-      with:
-        repository: DevOps-automation-tasks/rhods-operator
-        path: operator-repo
+      - name: Checkout rhods-operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          path: operator-repo
 
-    - name: Checkout RHOAI-Build-Config repository
-      uses: actions/checkout@v3
-      with:
-        repository: DevOps-automation-tasks/RHOAI-Build-Config
-        path: rbc-repo
+      - name: Checkout RHOAI-Build-Config repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          path: rbc-repo
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
-    - name: Fetch all branches from rhods-operator
-      id: fetch-branches
-      run: |
-        cd operator-repo
-        git fetch --all
-        BRANCHES=$(git branch -r | grep 'origin/rhoai-x.y' | sed 's/origin\///' | sort -V)
-        echo "Branches: $BRANCHES"
-        LATEST_BRANCH=$(echo "$BRANCHES" | tail -n 1)
-        SECOND_LATEST_BRANCH=$(echo "$BRANCHES" | tail -n 2 | head -n 1)
-        echo "LATEST_BRANCH=${LATEST_BRANCH}" >> $GITHUB_ENV
-        echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}" >> $GITHUB_ENV
+      - name: Determine latest and second latest branches
+        id: get_branches
+        run: |
+          branches=$(git -C operator-repo branch -r | grep 'origin/rhoai-x.' | sed 's/origin\///g' | sort -r)
+          latest_branch=$(echo "$branches" | head -n 1)
+          second_latest_branch=$(echo "$branches" | head -n 2 | tail -n 1)
+          echo "latest_branch=$latest_branch" >> $GITHUB_ENV
+          echo "second_latest_branch=$second_latest_branch" >> $GITHUB_ENV
 
-    - name: Echo Latest and Second Latest Branches
-      run: |
-        echo "LATEST_BRANCH=${LATEST_BRANCH}"
-        echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
+      - name: Sync bundle CSV and CRDs for latest and second latest branches
+        run: |
+          for branch in ${{ env.latest_branch }} ${{ env.second_latest_branch }}; do
+            git -C operator-repo checkout $branch
+            # Clean up unwanted fields from the operator repo (assuming YAML or similar files)
+            find operator-repo/path/to/bundle/files -type f -name '*.yaml' -exec sed -i '/channels:/d' {} \;
+            find operator-repo/path/to/bundle/files -type f -name '*.yaml' -exec sed -i '/default_channel:/d' {} \;
+            find operator-repo/path/to/bundle/files -type f -name '*.yaml' -exec sed -i '/replaces:/d' {} \;
+            find operator-repo/path/to/bundle/files -type f -name '*.yaml' -exec sed -i '/skip_ranges:/d' {} \;
 
-    - name: Sync bundle
-      run: |
-        # Your sync logic here, using the branches from $LATEST_BRANCH and $SECOND_LATEST_BRANCH
-        # For example:
-        echo "Syncing bundle with branches ${LATEST_BRANCH} and ${SECOND_LATEST_BRANCH}..."
-        # You can add the actual commands for syncing here.
+            # Sync the CSV, metadata, and all CRDs
+            rsync -av --delete operator-repo/path/to/bundle/files/ rbc-repo/bundle/
 
-    - name: Overwrite Bundle Dockerfile
-      run: |
-        # Your logic to overwrite the Dockerfile, if needed
-        cp operator-repo/Dockerfiles/bundle.Dockerfile rbc-repo/bundle/Dockerfile
-        echo "Overwritten the bundle Dockerfile"
+            # Overwrite the bundle Dockerfile
+            cp operator-repo/path/to/bundle/files/Dockerfile rbc-repo/bundle/
+          done
+
+      - name: Commit and push changes
+        run: |
+          cd rbc-repo
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          git add .
+          git commit -m 'Sync bundle files and Dockerfile from operator repo'
+          git push origin main  # Adjust this to your target branch or use a dynamic branch name
