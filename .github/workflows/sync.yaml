@@ -9,66 +9,46 @@ on:
 jobs:
   sync-bundle:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout the operator repository
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/rhods-operator
-          path: operator-repo
+    - name: Checkout rhods-operator repository
+      uses: actions/checkout@v3
+      with:
+        repository: DevOps-automation-tasks/rhods-operator
+        path: operator-repo
 
-      - name: Checkout the RBC repository
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/RHOAI-Build-Config
-          path: rbc-repo
+    - name: Checkout RHOAI-Build-Config repository
+      uses: actions/checkout@v3
+      with:
+        repository: DevOps-automation-tasks/RHOAI-Build-Config
+        path: rbc-repo
 
-      - name: Determine branches
-        id: branches
-        run: |
-          # Fetch the latest and second latest branches
-          LATEST_BRANCH=$(git -C operator-repo tag | grep '^v' | sort -V | tail -n 1)
-          SECOND_LATEST_BRANCH=$(git -C operator-repo tag | grep '^v' | sort -V | tail -n 2 | head -n 1)
-          echo "LATEST_BRANCH=${LATEST_BRANCH}"
-          echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
-          echo "LATEST_BRANCH=${LATEST_BRANCH}" >> $GITHUB_ENV
-          echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}" >> $GITHUB_ENV
+    - name: Fetch all branches from rhods-operator
+      id: fetch-branches
+      run: |
+        cd operator-repo
+        git fetch --all
+        BRANCHES=$(git branch -r | grep 'origin/rhoai-x.y' | sed 's/origin\///' | sort -V)
+        echo "Branches: $BRANCHES"
+        LATEST_BRANCH=$(echo "$BRANCHES" | tail -n 1)
+        SECOND_LATEST_BRANCH=$(echo "$BRANCHES" | tail -n 2 | head -n 1)
+        echo "LATEST_BRANCH=${LATEST_BRANCH}" >> $GITHUB_ENV
+        echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}" >> $GITHUB_ENV
 
-      - name: Debug Output and List Directories
-        run: |
-          echo "LATEST_BRANCH=${LATEST_BRANCH}"
-          echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
-          echo "Listing contents of rbc-repo:"
-          ls -R rbc-repo/
-          echo "Listing contents of operator-repo:"
-          ls -R operator-repo/
+    - name: Echo Latest and Second Latest Branches
+      run: |
+        echo "LATEST_BRANCH=${LATEST_BRANCH}"
+        echo "SECOND_LATEST_BRANCH=${SECOND_LATEST_BRANCH}"
 
-      - name: Sync Bundle Files
-        run: |
-          cd rbc-repo
+    - name: Sync bundle
+      run: |
+        # Your sync logic here, using the branches from $LATEST_BRANCH and $SECOND_LATEST_BRANCH
+        # For example:
+        echo "Syncing bundle with branches ${LATEST_BRANCH} and ${SECOND_LATEST_BRANCH}..."
+        # You can add the actual commands for syncing here.
 
-          # Verify if path/to/bundle exists
-          echo "Listing contents of rbc-repo/path/to/bundle:"
-          ls -R path/to/bundle || echo "Directory path/to/bundle does not exist."
-
-          # Remove existing channels, default channel, replaces, and skip ranges
-          find path/to/bundle -name '*.csv' -exec sed -i '/channels:/d' {} \;
-          find path/to/bundle -name '*.csv' -exec sed -i '/default_channel:/d' {} \;
-          find path/to/bundle -name '*.csv' -exec sed -i '/replaces:/d' {} \;
-          find path/to/bundle -name '*.csv' -exec sed -i '/skip_ranges:/d' {} \;
-
-          # Overwrite the bundle Dockerfile
-          cp ../operator-repo/path/to/bundle/Dockerfile path/to/bundle/Dockerfile
-
-          # Sync CSV, metadata, and custom resource definitions
-          cp -r ../operator-repo/path/to/bundle/* path/to/bundle/
-
-      - name: Commit and Push Changes
-        run: |
-          cd rbc-repo
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add path/to/bundle
-          git commit -m "Sync bundle files from rhods-operator"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Overwrite Bundle Dockerfile
+      run: |
+        # Your logic to overwrite the Dockerfile, if needed
+        cp operator-repo/Dockerfiles/bundle.Dockerfile rbc-repo/bundle/Dockerfile
+        echo "Overwritten the bundle Dockerfile"
