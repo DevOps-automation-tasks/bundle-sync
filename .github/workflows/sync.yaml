@@ -68,58 +68,92 @@ jobs:
           echo "::set-output name=latest_branch::$latest_branch"
           echo "::set-output name=previous_branch::$previous_branch"
 
-  sync-bundle:
-   runs-on: ubuntu-latest
-   steps:
-    - name: Checkout RBC Repo
-      uses: actions/checkout@v3
-      with:
-        repository: 'DevOps-automation-tasks/RHOAI-Build-Config'
-        path: rbc-repo
-        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-      
-    - name: Verify RBC Repo Checkout
-      run: |
-        if [ ! -d "rbc-repo" ]; then
-          echo "rbc-repo directory does not exist. Exiting."
-          exit 1
-        fi
-      
-    - name: Checkout Operator Repo
-      uses: actions/checkout@v3
-      with:
-        repository: 'DevOps-automation-tasks/rhods-operator'
-        path: operator-repo
-        token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-      
-    - name: Sync Bundle
-      run: |
-        cd rbc-repo
-        git fetch --all
+name: Sync Bundle
 
-        branches=("rhoai-2.14" "rhoai-2.13")
-        for branch in "${branches[@]}"; do
-          echo "Syncing for branch: $branch"
-          
-          # Fetch remote branches and check if the branch exists
-          if ! git rev-parse --verify --quiet origin/$branch; then
-            echo "Branch $branch does not exist on remote. Skipping."
-            continue
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  determine-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.determine.outputs.branches }}
+    steps:
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: 'DevOps-automation-tasks/rhods-operator'
+          path: operator-repo
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+
+      - name: Determine Branches
+        id: determine
+        run: |
+          branches=$(git branch -r | grep -E 'origin/rhoai-[0-9]+\.[0-9]+' | sed 's/origin\///g' | sort -V | tail -n 2)
+          echo "::set-output name=branches::${branches}"
+        shell: bash
+
+  sync-bundle:
+    runs-on: ubuntu-latest
+    needs: determine-branches
+    steps:
+      - name: Checkout RBC Repo
+        uses: actions/checkout@v3
+        with:
+          repository: 'DevOps-automation-tasks/RHOAI-Build-Config'
+          path: rbc-repo
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+
+      - name: Verify RBC Repo Checkout
+        run: |
+          if [ ! -d "rbc-repo" ]; then
+            echo "rbc-repo directory does not exist. Exiting."
+            exit 1
           fi
 
-          git checkout -b $branch origin/$branch
-          
-          # Sync the CSV, metadata, and CRDs
-          rsync -av --delete ../operator-repo/path/to/bundle/files/ bundle/
-          
-          # Retain the current image digests
-          yq eval '.spec.install.spec.deployments[] |= (.spec.template.spec.containers[] |= (.image = input_image))' -i $(find bundle -name '*.clusterserviceversion.yaml')
-          
-          # Sync the Dockerfile and overwrite it
-          cp ../operator-repo/path/to/bundle/files/Dockerfile bundle/
-          
-          git add .
-          git commit -m "Sync bundle from operator repo for $branch"
-          git push origin $branch
-        done
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: 'DevOps-automation-tasks/rhods-operator'
+          path: operator-repo
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+
+      - name: Sync Bundle
+        run: |
+          cd rbc-repo
+          git fetch --all
+
+          branches=(${{ needs.determine-branches.outputs.branches }})
+          for branch in "${branches[@]}"; do
+            echo "Syncing for branch: $branch"
+            
+            # Fetch remote branches and check if the branch exists
+            if ! git rev-parse --verify --quiet origin/$branch; then
+              echo "Branch $branch does not exist on remote. Skipping."
+              continue
+            fi
+
+            git checkout -b $branch origin/$branch
+            
+            # Sync the CSV, metadata, and CRDs
+            if [ ! -d "../operator-repo/path/to/bundle/files" ]; then
+              echo "The path to bundle files does not exist. Skipping."
+              continue
+            fi
+
+            rsync -av --delete ../operator-repo/path/to/bundle/files/ bundle/
+            
+            # Retain the current image digests
+            yq eval '.spec.install.spec.deployments[] |= (.spec.template.spec.containers[] |= (.image = input_image))' -i $(find bundle -name '*.clusterserviceversion.yaml')
+            
+            # Sync the Dockerfile and overwrite it
+            cp ../operator-repo/path/to/bundle/files/Dockerfile bundle/
+            
+            git add .
+            git commit -m "Sync bundle from operator repo for $branch"
+            git push origin $branch
+          done
+
 
