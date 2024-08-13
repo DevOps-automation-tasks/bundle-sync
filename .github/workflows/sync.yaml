@@ -50,7 +50,7 @@ jobs:
           # Convert the space-separated list to a bash array
           sorted_branches_array=($sorted_branches)
           
-          if [ ${#sorted_branches_array[@]} -lt 2]; then
+          if [ ${#sorted_branches_array[@]} -lt 2 ]; then
             echo "Not enough branches found."
             exit 1
           fi
@@ -79,12 +79,19 @@ jobs:
           path: rbc-repo
           fetch-depth: 0 # Fetch all branches
 
+      - name: Verify RBC Repo Directory
+        run: |
+          if [ ! -d "rbc-repo" ]; then
+            echo "rbc-repo directory does not exist. Exiting."
+            exit 1
+          fi
+
       - name: Sync bundle files to RBC Repo
         run: |
           branches=("${{ needs.determine-branches.outputs.latest_branch }}" "${{ needs.determine-branches.outputs.previous_branch }}")
+          cd rbc-repo
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
-            cd rbc-repo
 
             # Fetch the latest branches and check if the branch exists
             git fetch origin
