@@ -1,4 +1,4 @@
-name: Sync Bundle new
+name: Sync Bundle
 
 on:
   push:
@@ -29,11 +29,12 @@ jobs:
           echo "Raw branches JSON:"
           echo "$branches_json" | jq .
 
-          # Filter and sort branches
-          branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
+          # Filter for branches matching 'rhoai-x.y' and 'rhoai-x.y-1'
+          branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name]')
           echo "Filtered branches:"
           echo "$branches"
 
+          # Sort branches numerically and get the latest two
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
           echo "Sorted branches:"
           echo "$sorted_branches"
