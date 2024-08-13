@@ -3,7 +3,7 @@ name: Sync Bundle
 on:
   push:
     paths:
-      - 'bundle/**'
+      - 'bundle/**' # Adjust this to the actual path of your bundle files
   workflow_dispatch: # Allows the workflow to be triggered manually
 
 jobs:
@@ -29,12 +29,11 @@ jobs:
           echo "Raw branches JSON:"
           echo "$branches_json" | jq .
 
-          # Filter for branches matching 'rhoai-x.y' and 'rhoai-x.y-1'
-          branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name]')
+          # Filter and sort branches
+          branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
           echo "Filtered branches:"
           echo "$branches"
 
-          # Sort branches numerically and get the latest two
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
           echo "Sorted branches:"
           echo "$sorted_branches"
@@ -107,6 +106,11 @@ jobs:
           cd rbc-repo
           git branch -a
           git log --oneline -n 5
+
+      - name: Fetch All Branches in RBC Repo
+        run: |
+          cd rbc-repo
+          git fetch --all
 
       - name: Verify and Sync Bundle Files
         run: |
