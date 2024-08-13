@@ -3,7 +3,7 @@ name: bun1
 on:
   push:
     paths:
-      - 'bundle/**' # Path to your bundle files
+      - 'bundle/**'
   workflow_dispatch: # Allows the workflow to be triggered manually
 
 jobs:
@@ -14,8 +14,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
-          path: operator-repo
-          ref: main # Adjust this if you want to sync from a specific branch
+          ref: ${{ github.event.head_commit.branch }}  # Fetch changes from the branch of the latest commit
         id: checkout-operator-repo
 
       - name: Checkout RBC Repo
@@ -26,25 +25,22 @@ jobs:
           fetch-depth: 0 # Fetch all branches
         id: checkout-rbc-repo
 
-      - name: Get and Sort RHOAI Branches
-        id: get-branches
+      - name: Determine Branches
+        id: determine-branches
         run: |
-          cd rbc-repo
+          # Get branches from the API
+          branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches)
           
-          # Fetch all branches and filter for rhoai-x.y pattern
-          branches_json=$(git branch -r | grep 'origin/rhoai-' | sed 's/origin\///' | jq -R -s -c 'split("\n") | map(select(test("rhoai-\\d+\\.\\d+")))')
-          
-          # Sort branches by version
-          sorted_branches=$(echo "$branches_json" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
+          # Filter branches that follow the pattern "rhoai-x.y" and sort them
+          branches=$(echo "$branches_json" | jq -r '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name] | sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
           echo "Filtered branches:"
-          echo "$sorted_branches"
-
-          # Save branches to environment variables
-          echo "$sorted_branches" > branches.txt
+          echo "$branches"
+          
+          # Save branches to a file
+          echo "$branches" > branches.txt
           echo "branches_file=branches.txt" >> $GITHUB_ENV
 
-      - name: Set Latest and Previous Branches
-        id: set-branches
+      - name: Sync Bundle Changes
         run: |
           # Read branches from the file
           sorted_branches=$(cat ${{ env.branches_file }} | tr '\n' ' ')
@@ -69,46 +65,41 @@ jobs:
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
 
-          # Set outputs
-          echo "::set-output name=latest_branch::$latest_branch"
-          echo "::set-output name=previous_branch::$previous_branch"
+          branches=("${latest_branch}" "${previous_branch}")
 
-      - name: Sync Bundle Files
-        run: |
-          cd rbc-repo
-          
-          # Sync bundle files for latest and previous branches
-          branches=("${{ steps.set-branches.outputs.latest_branch }}" "${{ steps.set-branches.outputs.previous_branch }}")
-          
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
+            
+            # Navigate to the RBC repo directory
+            cd rbc-repo
 
-            # Verify the branch exists in RBC repo
+            # Verify the branch exists in the RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
-              echo "Branch $branch exists in RBC repo. Checking out..."
-
-              # Checkout the branch in RBC repo
+              echo "Branch $branch exists. Checking out..."
               git checkout $branch
 
-              # Sync the bundle files from operator repo
-              rsync -av --delete ../operator-repo/bundle/ bundle/
+              # Sync the bundle files from the operator repo
+              rsync -av --delete ../bundle/ bundle/
 
-              # Sync the Dockerfile and overwrite it
-              cp ../operator-repo/bundle/Dockerfile bundle/
+              # Overwrite the Dockerfile
+              cp ../bundle/Dockerfile bundle/
 
               git add .
-              git commit -m "Sync bundle files from operator repo for $branch"
+              git commit -m "Sync bundle from operator repo for $branch"
               git push origin $branch
             else
               echo "Branch $branch does not exist in the RBC repo."
             fi
+
+            # Navigate back to the root directory
+            cd ..
           done
 
       - name: Create Pull Request to RBC Repo
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-          branch: sync-bundle-${{ github.sha }}
-          title: "Sync bundle from operator repo"
+          branch: sync-bundle-${{ env.latest_branch }}
+          title: "Sync bundle from operator repo for ${{ env.latest_branch }}"
           body: "This PR syncs the bundle files from the operator repo."
-          base: main # Adjust this to the branch where the PR should be merged
+          base: ${{ env.latest_branch }}
