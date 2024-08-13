@@ -1,4 +1,4 @@
-name: Sync Bundle
+name: Sync23
 
 on:
   push:
