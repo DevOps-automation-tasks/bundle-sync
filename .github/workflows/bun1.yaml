@@ -1,9 +1,11 @@
-name: bun12
+name: Sync12
 
 on:
   push:
     paths:
       - 'bundle/**'
+    branches:
+      - 'main' # Adjust if you want to listen to a specific branch in the operator repo
 
 jobs:
   sync:
@@ -47,7 +49,6 @@ jobs:
           
           # Prepare bundle sync (remove channels, default channel, replaces, and skip ranges)
           # Example commands - adjust based on actual commands needed
-          # Remove channels, default channel, replaces, and skip ranges
           # remove-channels-command
 
           # Sync CSV, metadata, CRDs
