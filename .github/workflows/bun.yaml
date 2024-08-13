@@ -1,0 +1,83 @@
+name: Sync Bundle
+
+on:
+  push:
+    paths:
+      - 'bundle/**' # Path to your bundle files
+  workflow_dispatch: # Allows the workflow to be triggered manually
+
+jobs:
+  sync-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          ref: main # Adjust this if you want to sync with a specific branch
+        id: checkout-operator-repo
+
+      - name: Debug Checkout Operator Repo
+        run: |
+          echo "Checked out repository DevOps-automation-tasks/rhods-operator"
+          cd ${{ github.workspace }}
+          git branch -a
+          git log --oneline -n 5
+
+      - name: Checkout RBC Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          path: rbc-repo
+          fetch-depth: 0 # Fetch all branches
+        id: checkout-rbc-repo
+
+      - name: Debug Checkout RBC Repo
+        run: |
+          echo "Checked out repository DevOps-automation-tasks/RHOAI-Build-Config"
+          cd rbc-repo
+          git branch -a
+          git log --oneline -n 5
+
+      - name: Fetch All Branches in RBC Repo
+        run: |
+          cd rbc-repo
+          git fetch --all
+
+      - name: Sync Bundle Files
+        run: |
+          cd rbc-repo
+          
+          # Specify the branches to sync
+          branches=("rhoai-2.14" "rhoai-2.13") # Update with the desired branches
+
+          for branch in "${branches[@]}"; do
+            echo "Syncing for branch: $branch"
+            
+            # Verify the branch exists
+            if git show-ref --verify --quiet refs/heads/$branch; then
+              echo "Branch $branch exists. Checking out..."
+              git checkout $branch
+
+              # Sync the bundle files
+              rsync -av --delete ../bundle/ bundle/
+
+              # Sync the Dockerfile and overwrite it
+              cp ../bundle/Dockerfile bundle/
+
+              git add .
+              git commit -m "Sync bundle from operator repo for $branch"
+              git push origin $branch
+            else
+              echo "Branch $branch does not exist in the RBC repo."
+            fi
+          done
+
+      - name: Create Pull Request to RBC Repo
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          branch: sync-bundle-${{ github.sha }}
+          title: "Sync bundle from operator repo"
+          body: "This PR syncs the bundle files from the operator repo."
+          base: main # Adjust this to the branch where the PR should be merged
