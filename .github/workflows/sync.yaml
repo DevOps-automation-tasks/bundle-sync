@@ -28,14 +28,12 @@ jobs:
           
           # Sort the branches numerically by version
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
-
           echo "Sorted branches:"
           echo "$sorted_branches"
-
           # Save branches to a file
           echo "$sorted_branches" > branches.txt
           echo "branches_file=branches.txt" >> $GITHUB_ENV
-
+          
       - name: Set Latest and Previous Branches
         id: set-branches
         run: |
@@ -46,7 +44,6 @@ jobs:
             echo "No branches found matching the pattern."
             exit 1
           fi
-
           # Convert the space-separated list to a bash array
           sorted_branches_array=($sorted_branches)
           
@@ -54,46 +51,16 @@ jobs:
             echo "Not enough branches found."
             exit 1
           fi
-
           # Parse the array
           latest_branch=${sorted_branches_array[0]}
           previous_branch=${sorted_branches_array[1]}
-
           echo "Latest branch: $latest_branch"
           echo "Previous branch: $previous_branch"
-
           # Set outputs using environment files
           echo "latest_branch=$latest_branch" >> $GITHUB_ENV
           echo "previous_branch=$previous_branch" >> $GITHUB_ENV
           echo "::set-output name=latest_branch::$latest_branch"
           echo "::set-output name=previous_branch::$previous_branch"
-
-name: Sync Bundle
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  determine-branches:
-    runs-on: ubuntu-latest
-    outputs:
-      branches: ${{ steps.determine.outputs.branches }}
-    steps:
-      - name: Checkout Operator Repo
-        uses: actions/checkout@v3
-        with:
-          repository: 'DevOps-automation-tasks/rhods-operator'
-          path: operator-repo
-          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-
-      - name: Determine Branches
-        id: determine
-        run: |
-          branches=$(git branch -r | grep -E 'origin/rhoai-[0-9]+\.[0-9]+' | sed 's/origin\///g' | sort -V | tail -n 2)
-          echo "::set-output name=branches::${branches}"
-        shell: bash
 
   sync-bundle:
     runs-on: ubuntu-latest
@@ -124,9 +91,11 @@ jobs:
         run: |
           cd rbc-repo
           git fetch --all
-
-          branches=(${{ needs.determine-branches.outputs.branches }})
-          for branch in "${branches[@]}"; do
+          
+          latest_branch=${{ needs.determine-branches.outputs.latest_branch }}
+          previous_branch=${{ needs.determine-branches.outputs.previous_branch }}
+          
+          for branch in "$latest_branch" "$previous_branch"; do
             echo "Syncing for branch: $branch"
             
             # Fetch remote branches and check if the branch exists
@@ -134,7 +103,6 @@ jobs:
               echo "Branch $branch does not exist on remote. Skipping."
               continue
             fi
-
             git checkout -b $branch origin/$branch
             
             # Sync the CSV, metadata, and CRDs
@@ -155,5 +123,3 @@ jobs:
             git commit -m "Sync bundle from operator repo for $branch"
             git push origin $branch
           done
-
-
