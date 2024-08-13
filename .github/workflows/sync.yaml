@@ -24,9 +24,17 @@ jobs:
       - name: Get and Sort RHOAI Branches
         id: get-branches
         run: |
-          branches=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
-          
-          # Sort the branches numerically by version
+          # Get branches from the API
+          branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches)
+          echo "Raw branches JSON:"
+          echo "$branches_json"
+
+          # Filter and sort branches
+          branches=$(echo "$branches_json" | jq '[.[] | select(.name | test("rhoai-\\d+\\.\\d+$")) | .name]')
+
+          echo "Filtered branches:"
+          echo "$branches"
+
           sorted_branches=$(echo "$branches" | jq -r 'sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
 
           echo "Sorted branches:"
@@ -135,4 +143,17 @@ jobs:
               git push origin $branch
             else
               echo "Branch $branch does not exist in the RBC repo."
-      
+            fi
+
+            # Navigate back to the root directory
+            cd ..
+          done
+
+      - name: Create Pull Request to RBC Repo
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          branch: sync-bundle-${{ needs.determine-branches.outputs.latest_branch }}
+          title: "Sync bundle from operator repo for ${{ needs.determine-branches.outputs.latest_branch }}"
+          body: "This PR syncs the bundle files from the operator repo."
+          base: ${{ needs.determine-branches.outputs.latest_branch }}
