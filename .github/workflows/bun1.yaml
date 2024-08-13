@@ -1,4 +1,4 @@
-name: bun12
+name: bund1
 
 on:
   push:
@@ -15,6 +15,7 @@ jobs:
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
+          fetch-depth: 0 # Fetch all branches
         id: checkout-operator-repo
 
       - name: Checkout RBC Repo
@@ -28,17 +29,17 @@ jobs:
       - name: Install GitHub CLI and jq
         run: sudo apt-get install -y gh jq
 
-      - name: Authenticate with GitHub CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh auth login --with-token <<< $GH_TOKEN
-
       - name: Determine Branches
         id: determine-branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Set GH_TOKEN for GitHub CLI commands
+          export GH_TOKEN=${GH_TOKEN}
+
           # Get branches from the API
-          branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches)
-          
+          branches_json=$(gh api /repos/DevOps-automation-tasks/rhods-operator/branches --header "Authorization: token ${GH_TOKEN}")
+
           # Filter branches that follow the pattern "rhoai-x.y" and sort them
           branches=$(echo "$branches_json" | jq -r '[.[] | select(.name | test("^rhoai-\\d+\\.\\d+$")) | .name] | sort_by(ltrimstr("rhoai-") | split(".") | map(tonumber)) | reverse | .[:2] | join("\n")')
           echo "Filtered branches:"
@@ -83,31 +84,37 @@ jobs:
 
             # Verify the branch exists in the RBC repo
             if git show-ref --verify --quiet refs/heads/$branch; then
-              echo "Branch $branch exists. Checking out..."
+              echo "Branch $branch exists in RBC repo. Checking out..."
               git checkout $branch
 
-              # Sync the bundle files from the operator repo
-              rsync -av --delete ../operator-repo/bundle/ bundle/
+              # Navigate to the operator repo directory
+              cd ../operator-repo
 
-              # Overwrite the Dockerfile
-              cp ../operator-repo/bundle/Dockerfile bundle/
+              # Verify the branch exists in the operator repo
+              if git show-ref --verify --quiet refs/heads/$branch; then
+                echo "Branch $branch exists in Operator repo. Checking out..."
+                git checkout $branch
 
-              git add .
-              git commit -m "Sync bundle from operator repo for $branch"
-              git push origin $branch
+                # Sync the bundle files from the operator repo
+                rsync -av --delete ../operator-repo/bundle/ ../rbc-repo/bundle/
+
+                # Overwrite the Dockerfile
+                cp ../operator-repo/bundle/Dockerfile ../rbc-repo/bundle/
+
+                # Navigate back to RBC repo
+                cd ../rbc-repo
+
+                git add .
+                git commit -m "Sync bundle from operator repo for $branch"
+                git push origin $branch
+              else
+                echo "Branch $branch does not exist in Operator repo."
+              fi
+
             else
-              echo "Branch $branch does not exist in the RBC repo."
+              echo "Branch $branch does not exist in RBC repo."
             fi
 
             # Navigate back to the root directory
             cd ..
           done
-
-      - name: Create Pull Request to RBC Repo
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: sync-bundle-${{ env.latest_branch }}
-          title: "Sync bundle from operator repo for ${{ env.latest_branch }}"
-          body: "This PR syncs the bundle files from the operator repo."
-          base: ${{ env.latest_branch }}
