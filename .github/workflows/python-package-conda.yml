@@ -3,8 +3,8 @@ name: Sync Bundle to RBC Repo
 on:
   push:
     paths:
-      - 'path/to/bundle/files/**'  # Adjust this path to match where your bundle files are located
-  workflow_dispatch:  # Allows manual triggering of the workflow
+      - 'path/to/bundle/files/**'
+  workflow_dispatch:
 
 jobs:
   sync-bundle:
@@ -23,16 +23,20 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-          ref: ${{ github.ref }}  # Use the same branch as the trigger
+          ref: ${{ github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.x
 
+      - name: List directory contents
+        run: |
+          ls -al
+
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r scripts/requirements.txt
 
       - name: Sync Bundle
         run: |
