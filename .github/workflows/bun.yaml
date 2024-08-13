@@ -1,4 +1,4 @@
-name: Sync Bundle
+name: bun
 
 on:
   push:
