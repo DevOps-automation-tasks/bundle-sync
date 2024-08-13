@@ -1,4 +1,4 @@
-name: Sync Bundle to RBC Repo
+name: Repo
 
 on:
   push:
