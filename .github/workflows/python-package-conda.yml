@@ -4,8 +4,7 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'  # Adjust this path to match where your bundle files are located
-    branches:
-      - 'main'  # Trigger only on pushes to the 'main' branch
+  workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
   sync-bundle:
