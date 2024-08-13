@@ -4,84 +4,79 @@ on:
   push:
     paths:
       - 'path/to/bundle/files/**'
-    branches:
-      - 'main'
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
-  determine-branches:
+  sync:
     runs-on: ubuntu-latest
-    outputs:
-      latest-branch: ${{ steps.get-latest.outputs.latest }}
-      second-latest-branch: ${{ steps.get-second-latest.outputs.second-latest }}
-
     steps:
-      - name: Checkout Operator Repo
+      - name: Checkout operator repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
 
-      - name: Get Branch List
-        id: get-branches
-        run: |
-          branches=$(gh api repos/DevOps-automation-tasks/rhods-operator/branches --jq '.[].name' | sort -r)
-          echo "Branches: $branches"
-          echo "branches=$branches" >> $GITHUB_ENV
-
-      - name: Set Latest and Second Latest Branch
-        id: get-latest
-        run: |
-          branches=(${{ env.branches }})
-          latest=${branches[0]}
-          second_latest=${branches[1]}
-          echo "Latest Branch: $latest"
-          echo "Second Latest Branch: $second_latest"
-          echo "latest=$latest" >> $GITHUB_ENV
-          echo "second-latest=$second_latest" >> $GITHUB_ENV
-
-  sync-bundle:
-    needs: determine-branches
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout RBC Repo
+      - name: Checkout RBC repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
-      - name: Checkout Operator Repo
-        uses: actions/checkout@v3
-        with:
-          repository: DevOps-automation-tasks/rhods-operator
-          path: operator-repo
-          ref: ${{ needs.determine-branches.outputs.latest }}
-
-      - name: Sync Bundle Files
+      - name: Get latest rhoai-x.y branches
+        id: get-branches
         run: |
-          OPERATOR_BUNDLE_DIR="operator-repo/path/to/bundle/files"
-          RBC_BUNDLE_DIR="rbc-repo/bundle"
-          echo "Syncing bundle files from operator repo to RBC repo..."
-          rsync -av --delete "$OPERATOR_BUNDLE_DIR/" "$RBC_BUNDLE_DIR/"
+          curl -H "Authorization: token ${{ secrets.BUNDLE_SYNC_TOKEN }}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               https://api.github.com/repos/DevOps-automation-tasks/rhods-operator/branches \
+               | jq -r '.[] | select(.name | startswith("rhoai-")) | .name' \
+               | head -n 2 > latest_branches.txt
 
-      - name: Remove Old Files
+      - name: Read branch names
+        id: branches
         run: |
-          echo "Removing old files from RBC repo..."
-          find rbc-repo/bundle -type f -not -path 'rbc-repo/bundle/new-files/*' -delete
+          latest_branches=$(cat latest_branches.txt)
+          echo "::set-output name=branches::$latest_branches"
 
-      - name: Commit Changes
+      - name: Fetch branches
+        id: fetch-branches
+        run: |
+          branches=($(echo "${{ steps.branches.outputs.branches }}" | tr '\n' ' '))
+          latest_branch="${branches[0]}"
+          second_latest_branch="${branches[1]}"
+          echo "LATEST_BRANCH=$latest_branch" >> $GITHUB_ENV
+          echo "SECOND_LATEST_BRANCH=$second_latest_branch" >> $GITHUB_ENV
+
+      - name: Sync Bundle
+        run: |
+          latest_branch=${LATEST_BRANCH}
+          second_latest_branch=${SECOND_LATEST_BRANCH}
+
+          echo "Syncing bundle for branches: $latest_branch and $second_latest_branch"
+
+          # Sync process
+          # 1. Remove channels, default channel, replaces, and skip ranges from the operator repo.
+          # 2. Sync CSV, metadata, and all custom resource definitions.
+          # 3. Overwrite bundle Dockerfile in the RBC repo.
+
+          # Example commands (replace these with actual commands/scripts):
+          cd operator-repo/path/to/bundle/files
+          rm -rf channels default-channel replaces skip-ranges
+
+          # Sync bundle files
+          cp -r * ../../rbc-repo/bundle/
+
+          cd ../../rbc-repo
+          # Overwrite Dockerfile (Example command, adjust as needed)
+          cp -f bundle/Dockerfile .
+
+      - name: Commit and push changes to RBC repo
         run: |
           cd rbc-repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add .
           git commit -m "Sync bundle from operator repo"
           git push origin main
-
-      - name: Validate Sync
-        run: |
-          echo "Validating sync..."
-          # Add any validation steps if needed
-
-      - name: Clean Up
-        run: |
-          rm -rf rbc-repo
-          rm -rf operator-repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
