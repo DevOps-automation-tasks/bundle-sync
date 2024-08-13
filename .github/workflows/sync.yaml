@@ -6,37 +6,66 @@ on:
       - 'path/to/bundle/files/**'
     branches:
       - 'main'
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  sync:
+  determine-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      latest-branch: ${{ steps.get-latest.outputs.latest }}
+      second-latest-branch: ${{ steps.get-second-latest.outputs.second-latest }}
+
+    steps:
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          path: operator-repo
+
+      - name: Get Branch List
+        id: get-branches
+        run: |
+          branches=$(gh api repos/DevOps-automation-tasks/rhods-operator/branches --jq '.[].name' | sort -r)
+          echo "Branches: $branches"
+          echo "branches=$branches" >> $GITHUB_ENV
+
+      - name: Set Latest and Second Latest Branch
+        id: get-latest
+        run: |
+          branches=(${{ env.branches }})
+          latest=${branches[0]}
+          second_latest=${branches[1]}
+          echo "Latest Branch: $latest"
+          echo "Second Latest Branch: $second_latest"
+          echo "latest=$latest" >> $GITHUB_ENV
+          echo "second-latest=$second_latest" >> $GITHUB_ENV
+
+  sync-bundle:
+    needs: determine-branches
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout RBC repo
+      - name: Checkout RBC Repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           path: rbc-repo
 
-      - name: Checkout Operator repo
+      - name: Checkout Operator Repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
           path: operator-repo
-          ref: ${{ github.ref }}
+          ref: ${{ needs.determine-branches.outputs.latest }}
 
       - name: Sync Bundle Files
         run: |
-          # Define directories
           OPERATOR_BUNDLE_DIR="operator-repo/path/to/bundle/files"
           RBC_BUNDLE_DIR="rbc-repo/bundle"
-
-          # Copy bundle files from operator repo to RBC repo
           echo "Syncing bundle files from operator repo to RBC repo..."
           rsync -av --delete "$OPERATOR_BUNDLE_DIR/" "$RBC_BUNDLE_DIR/"
 
       - name: Remove Old Files
         run: |
-          # Remove old files from RBC repo
           echo "Removing old files from RBC repo..."
           find rbc-repo/bundle -type f -not -path 'rbc-repo/bundle/new-files/*' -delete
 
@@ -50,10 +79,9 @@ jobs:
       - name: Validate Sync
         run: |
           echo "Validating sync..."
-          # Here you can add any validation steps if needed
+          # Add any validation steps if needed
 
       - name: Clean Up
         run: |
-          # Remove temporary directories
           rm -rf rbc-repo
           rm -rf operator-repo
