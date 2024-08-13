@@ -1,4 +1,4 @@
-name: new sync
+name: Sync Bundle to RBC Repo
 
 on:
   push:
@@ -91,6 +91,12 @@ jobs:
           for branch in "${branches[@]}"; do
             echo "Syncing for branch: $branch"
             
+            # Check if the rbc-repo directory exists
+            if [ ! -d "rbc-repo" ]; then
+              echo "Directory rbc-repo does not exist."
+              exit 1
+            fi
+            
             # Navigate to the RBC repo directory
             cd rbc-repo
 
@@ -114,6 +120,9 @@ jobs:
             else
               echo "Branch $branch does not exist in the RBC repo."
             fi
+
+            # Navigate back to the root directory
+            cd ..
           done
 
       - name: Create Pull Request to RBC Repo
