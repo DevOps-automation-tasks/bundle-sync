@@ -24,6 +24,16 @@ jobs:
           path: rbc-repo
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
 
+      - name: List operator repo files
+        run: |
+          echo "Listing files in operator-repo:"
+          ls -R operator-repo
+
+      - name: List RBC repo files
+        run: |
+          echo "Listing files in rbc-repo:"
+          ls -R rbc-repo
+
       - name: Get latest rhoai-x.y branches
         id: get-branches
         run: |
