@@ -1,0 +1,46 @@
+name: Sync Bundle to RBC Repo
+
+on:
+  push:
+    paths:
+      - 'path/to/bundle/files/**'
+      
+jobs:
+  sync-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout operator repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          path: rhods-operator
+
+      - name: Checkout RBC repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          path: rbc
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          ref: ${{ github.event.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Sync Bundle
+        run: |
+          python scripts/sync_bundle.py
+
+      - name: Commit and push changes
+        run: |
+          cd rbc
+          git add .
+          git commit -m "Sync bundle from rhods-operator"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
