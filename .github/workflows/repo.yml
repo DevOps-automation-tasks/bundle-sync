@@ -1,4 +1,4 @@
-name: Repo
+name: Sync Bundle to RBC Repo
 
 on:
   push:
@@ -58,4 +58,3 @@ jobs:
           git add .
           git commit -m "Sync bundle changes from rhods-operator repo" || echo "No changes to commit"
           git push origin ${{ github.event.inputs.branch || github.ref }}
-
